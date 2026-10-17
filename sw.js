@@ -1,5 +1,5 @@
 /* Exhibitor Leads service worker: works offline, picks up updates on the next open. */
-const CACHE = 'exhibitorleads-v1';   // bump on every release, together with core.js?v= in index.html
+const CACHE = 'exhibitorleads-v2';   // bump on every release, together with core.js?v= in index.html
 const SHELL = ['./', 'index.html', 'core.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {

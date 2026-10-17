@@ -210,10 +210,10 @@ dialog.sheet::backdrop { background: rgba(4, 6, 14, .62); }
 .status-box { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: var(--bg); font-size: 14px; color: var(--ink-2); }
 .status-box p { margin: 2px 0; font-size: 14px; }
 
-/* Popovers */
-.pop { position: absolute; top: 64px; right: 12px; z-index: 5; width: min(300px, calc(100% - 24px)); padding: 16px 12px 12px; border-radius: 18px;
-  background: var(--raise); border: 1px solid var(--line-2); box-shadow: 0 18px 40px rgba(0, 0, 0, .45); animation: drop .18s ease-out; transform-origin: top right; }
-@keyframes drop { from { opacity: 0; transform: translateY(-6px) scale(.98); } }
+/* Colour theme and usage, both in Settings */
+.use { margin-top: 12px; }
+.use-row { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; font-size: 14px; color: var(--ink-2); }
+.use-row b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
 .theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 6px; }
 .theme-opt { display: grid; justify-items: center; gap: 6px; padding: 4px 0; font-size: 12.5px; color: var(--ink-2); }
 .theme-opt[aria-pressed="true"] { color: var(--ink); }
@@ -245,15 +245,11 @@ dialog.sheet::backdrop { background: rgba(4, 6, 14, .62); }
       </div>
     </div>
     <div class="tools">
-      <button class="icon-btn" id="themeBtn" type="button" aria-expanded="false" aria-haspopup="true" aria-controls="themes" aria-label="Colour theme">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
-      </button>
       <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
       </button>
     </div>
   </header>
-  <div class="pop" id="themes" hidden role="group" aria-label="Colour theme"></div>
   <div id="notices"></div>
   <main id="main" aria-live="polite"></main>
   <p class="foot" id="foot">A guide only, not legal advice. Emailing a limited company still needs your name, a relevant offer and a way to opt out. Company details come from Companies House. Pages are read politely and only where the site allows it.</p>
@@ -262,7 +258,7 @@ dialog.sheet::backdrop { background: rgba(4, 6, 14, .62); }
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="core.js?v=1"></script>
+<script src="core.js?v=2"></script>
 <script>
 (() => {
 'use strict';
@@ -299,6 +295,8 @@ const S = {
   filter: 'all', q: '', limit: 200,
   set: Object.assign({ theme: 'twilight', lastSector: '' }, get('settings', {})),
   status: get('status', null),
+  usage: null,                      // the last 24 hours, from the sheet. Never saved, so it is never stale
+  usageHidden: '',
   offline: false, offlineMsg: '',
   installEvt: null,
   shared: null,
@@ -363,12 +361,23 @@ function totals() {
   return t;
 }
 
+// The same warning stays hidden once dismissed, even as the percentage creeps up. A change of kind brings it back.
+const usageKey = () => (S.usage && S.usage.warn ? S.usage.message.replace(/\d+%/, '') : '');
+
+function setUsage(u) {
+  S.usage = C.usage(u);
+  renderNotices();
+  const box = $('#usageBox');
+  if (box && sheet.open) box.outerHTML = usageHtml();
+}
+
 async function refreshShows() {
   if (!S.api) return false;
   try {
     const j = await call('list');
     const changed = JSON.stringify(j.shows || []) !== JSON.stringify(S.shows);
     S.shows = j.shows || [];
+    setUsage(j.usage);
     S.showsAt = Date.now();
     put('shows', S.shows); put('showsAt', S.showsAt);
     setOffline(null);
@@ -415,6 +424,7 @@ async function runChecks(id) {
     while (!E.stop && S.route.v === 'show' && S.route.showId === id && document.visibilityState === 'visible') {
       const r = await call('enrich', { showId: id, budget: 20 }, 70000);
       mergeRows(id, r.changed);
+      if (r.usage) setUsage(r.usage);
       setOffline(null);
       updateShow();
       if (r.pending <= 0) break;
@@ -452,7 +462,7 @@ function go(route, replace) {
 window.addEventListener('popstate', (e) => {
   S.route = (e.state && e.state.r) || { v: 'home' };
   S.filter = 'all'; S.q = ''; S.limit = 200;
-  closeSheet(); closePops();
+  closeSheet();
   enter();
 });
 async function enter() {
@@ -493,6 +503,9 @@ function renderNotices() {
   if (!standalone && !dismissed.install) {
     if (S.installEvt) out.push(`<div class="notice"><p>Add Exhibitor Leads to your home screen for one-tap access.</p><button class="link-btn" type="button" data-act="install">Install</button><button class="x" type="button" data-dismiss="install" aria-label="Dismiss">${ICON.x}</button></div>`);
     else if (isIOS) out.push(`<div class="notice"><p>Add Exhibitor Leads to your Home Screen: tap Share, then Add to Home Screen.</p><button class="x" type="button" data-dismiss="install" aria-label="Dismiss">${ICON.x}</button></div>`);
+  }
+  if (S.api && !S.offline && S.usage && S.usage.warn && S.usageHidden !== usageKey()) {
+    out.push(`<div class="notice"><p>${esc(S.usage.message)}</p><button class="link-btn" type="button" data-act="settings">Details</button><button class="x" type="button" data-act="hide-usage" aria-label="Dismiss">${ICON.x}</button></div>`);
   }
   $('#notices').innerHTML = out.join('');
 }
@@ -790,6 +803,16 @@ function statusBox() {
     <p>Background checks: ${st.trigger ? 'on, every 10 minutes' : '<strong>off</strong>. Run setup again in Apps Script'}</p></div>`;
 }
 
+function usageHtml() {
+  const u = S.usage;
+  if (!S.api || !u) return '<div id="usageBox"></div>';
+  const line = (label, m) => `<div class="use"><div class="use-row"><span>${label}</span><b>${esc(m.text)}</b></div><div class="bar" role="img" aria-label="${label}: ${esc(m.text)}"><i style="width:${m.width}%"></i></div></div>`;
+  return `<div id="usageBox"><h3>Last 24 hours</h3>
+    ${line('Web requests', u.fetches)}
+    ${line('Background minutes', u.bg)}
+    <p class="hint">Counts this app only. Google counts everything on your account, so its own figure may be a little higher. You will see a warning on the main screen above 70%.</p></div>`;
+}
+
 function openSettings() {
   const a = S.api || {};
   openSheet(`${head('Settings')}
@@ -803,11 +826,19 @@ function openSettings() {
       <div class="actions"><button class="btn primary" type="submit">${S.api ? 'Save and test' : 'Connect'}</button>${S.api ? '<button class="btn" type="button" data-act="disconnect">Disconnect this phone</button>' : ''}</div>
     </form>
     ${statusBox()}
+    ${usageHtml()}
     <h3>Colour theme</h3>
     ${themeGridHtml()}
     <h3>About</h3>
     <p class="small">For your own prospecting. Company status comes from Companies House and email setup from public mail records. Sole traders cannot be confirmed from the register, so anything unconfirmed is marked as needing consent. A guide only, not legal advice.</p>`);
-  if (S.api && !S.status) call('status').then((j) => { S.status = j; put('status', j); const b = $('#statusBox'); if (!b && sheet.open && $('#connectForm')) $('#connectForm').insertAdjacentHTML('afterend', statusBox()); }).catch(() => {});
+  // Always ask again, so the usage shown is current
+  if (S.api) call('status').then((j) => {
+    S.status = j; put('status', j);
+    if (!sheet.open || !$('#connectForm')) return;
+    const b = $('#statusBox');
+    if (b) b.outerHTML = statusBox(); else $('#connectForm').insertAdjacentHTML('afterend', statusBox());
+    setUsage(j.usage);
+  }).catch(() => {});
 }
 
 async function connect(url, token) {
@@ -831,7 +862,7 @@ async function connect(url, token) {
   }
 }
 
-/* ---------- Themes and panels ---------- */
+/* ---------- Themes ---------- */
 function setTheme(id) {
   const t = THEMES.find((x) => x.id === id) || THEMES[0];
   S.set.theme = t.id; saveSet();
@@ -840,24 +871,6 @@ function setTheme(id) {
   document.querySelectorAll('.theme-opt').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.theme === t.id)));
 }
 
-const POPS = { themes: '#themeBtn' };
-function togglePop(id, open) {
-  const pop = $('#' + id), show = open == null ? pop.hidden : open;
-  if (show) pop.innerHTML = themeGridHtml();
-  pop.hidden = !show;
-  $(POPS[id]).setAttribute('aria-expanded', String(show));
-}
-function closePops() { for (const id in POPS) if (!$('#' + id).hidden) togglePop(id, false); }
-const popOpen = () => Object.keys(POPS).some((id) => !$('#' + id).hidden);
-// A tap outside an open panel only closes it. It never also presses what is underneath.
-document.addEventListener('click', (e) => {
-  if (!popOpen() || e.target.closest('.pop, ' + Object.values(POPS).join(', '))) return;
-  e.preventDefault(); e.stopPropagation(); closePops();
-}, true);
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape') return;
-  for (const id in POPS) if (!$('#' + id).hidden) { togglePop(id, false); $(POPS[id]).focus(); }
-});
 
 /* ---------- Files ---------- */
 function download(name, text) {
@@ -944,6 +957,7 @@ async function act(name, t) {
     case 'close': closeSheet(); break;
     case 'back': history.back(); break;
     case 'settings': openSettings(); break;
+    case 'hide-usage': S.usageHidden = usageKey(); renderNotices(); break;
     case 'retry': {
       const ok = await refreshShows();
       if (S.route.v === 'show') { await fetchRows(S.route.showId).then(() => setOffline(null)).catch((e) => setOffline(e)); updateShow(); ensureChecking(); }
@@ -1013,7 +1027,7 @@ async function act(name, t) {
       break;
     }
     case 'disconnect':
-      S.api = null; S.status = null; S.shows = []; S.rows = {};
+      S.api = null; S.status = null; S.usage = null; S.shows = []; S.rows = {};
       ['api', 'shows', 'showsAt', 'rowIds', 'status'].forEach(drop);
       try { Object.keys(localStorage).filter((k) => k.indexOf(P + 'rows.') === 0).forEach((k) => localStorage.removeItem(k)); } catch {}
       closeSheet(); S.route = { v: 'home' }; history.replaceState({ r: S.route }, ''); render(); toast('Disconnected. Nothing was deleted from your sheet.');
@@ -1087,7 +1101,6 @@ document.addEventListener('input', (e) => {
 });
 
 $('#settingsBtn').addEventListener('click', () => openSettings());
-$('#themeBtn').addEventListener('click', () => togglePop('themes'));
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); S.installEvt = e; renderNotices(); });
 window.addEventListener('online', () => { if (S.offline) act('retry', document.body); });
 

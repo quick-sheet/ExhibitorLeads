@@ -18,7 +18,7 @@ Live at `https://quick-sheet.github.io/ExhibitorLeads/`. The page holds no data.
 3. Get a free Companies House key: register at developer.company-information.service.gov.uk, create an application, then add a **REST** key. In Apps Script open **Project Settings, Script Properties**, add `CH_KEY` and paste the key as its value.
 4. Choose `setup` in the toolbar, press **Run** and approve access. Open **Execution log**: it shows your access token and the Sheet address. Copy the token.
 5. **Deploy, New deployment, Web app**. Set **Execute as** Me and **Who has access** Anyone, then **Deploy** and copy the **Web app URL**.
-6. Open the app, tap the sliders icon, paste the web app address and the token, and tap **Connect**.
+6. Open the app, tap the sliders icon (Settings), paste the web app address and the token, and tap **Connect**.
 
 The token stops strangers using the web app address. Keep it private. The repo never contains it.
 
@@ -43,6 +43,8 @@ If a show's site does not allow automated reading, or the list cannot be read, u
 - **Consent needed:** no limited company confirmed. Could be a sole trader or a partnership, which need consent first.
 - **To check:** a similar company name exists, but it is not confirmed, or the company is not active. Confirm it in the exhibitor's detail.
 
+The company number is looked for in this order: on the exhibitor's own pages (home page, footer, terms and privacy pages), checked against Companies House and against the company name shown beside it; then the same page of the company register by name. A number found on the site is only accepted when it exists on Companies House and, if several numbers appear, the registered name also appears on the page. Irish and charity numbers are ignored.
+
 This is a guide, not legal advice.
 
 ## Update
@@ -50,6 +52,8 @@ This is a guide, not legal advice.
 1. **Add file, Upload files**, choose the changed files (same names replace the old ones), then **Commit changes**.
 2. Wait about a minute.
 3. Fully close the app and reopen it. If it still looks the same, close and reopen once more.
+
+If `Code.gs` changed in a way that affects how companies are matched, results that were not confirmed (by the site, or by you) are checked again once, automatically, the first time the sheet is used after the new version is deployed. Confirmed ones are never touched.
 
 Each release bumps two markers together: `core.js?v=N` in `index.html` and the cache name `exhibitorleads-vN` in `sw.js`. If `Code.gs` changed, also go to **Deploy, Manage deployments**, tap the pencil, set Version to **New version** and **Deploy**. That keeps the same address.
 
@@ -68,9 +72,12 @@ Each release bumps two markers together: `core.js?v=N` in `index.html` and the c
 
 - Pages are read politely: the app obeys each site's `robots.txt`, and anything it asks bots not to read is skipped.
 - Contact names and emails come from company websites, so they are patchy. Emails are never guessed. A Companies House director is shown, labelled, only when a company is confirmed.
-- Sites that build their pages with JavaScript give little to read. The detail says so.
+- Sites that build their pages with JavaScript give little to read. The detail says so. For these the usual terms and privacy addresses are tried as well, which costs a few extra requests for exhibitors with no company number on their home page.
+- Sole traders are not on the Companies House register, so they cannot be confirmed and stay as consent needed.
+- The colour theme is chosen in Settings.
 - The mail check looks at public MX records. "Probably Google" means Google sits behind a mail filter.
 - Apps Script cuts any run off at 6 minutes, so the work is done in short bursts: about 20 seconds at a time while the app is open, and up to 3 minutes every 10 minutes in the background. An exhibitor whose site is very slow has its extra pages skipped (the detail says so, and **Check again** retries), and one that is cut off twice is skipped.
+- Settings shows a **Last 24 hours** line: web requests used of 100,000 and background minutes of 360 (the Google Workspace limits). The main screen shows a warning only above 70%. It counts this app's own use, so Google's figure for your whole account may be higher. Google's limits run on a rolling 24 hours from first use, not from midnight.
 - Daily limits are per Google account, across all your scripts. A free account allows about 20,000 web requests and 90 minutes of background time a day. Google Workspace allows 100,000 requests and 6 hours. Each exhibitor uses roughly five to ten requests, so a few hundred exhibitors a day is comfortable on either.
 - Some exhibitors share a website (a distributor with several brands). They share one set of results.
 - Spreadsheets drop the leading zero of a company number such as 07654321. The CSV also has a Companies House page link for each company.

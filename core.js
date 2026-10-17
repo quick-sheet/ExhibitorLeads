@@ -382,12 +382,43 @@
     });
   }
 
+  /* ---------- Daily usage (the Today line in Settings, and the warning) ---------- */
+
+  const WARN_AT = 70;
+  const commas = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+  /**
+   * What the sheet reports as used over the last 24 hours, ready to show.
+   * Returns null when there is nothing usable, so the screen simply shows no usage rather than a wrong one.
+   */
+  function usage(u) {
+    const lim = u && u.limits;
+    if (!lim || !(+lim.fetches > 0) || !(+lim.bgMinutes > 0)) return null;
+    const one = (used, limit, text) => {
+      used = Math.max(0, +used || 0);
+      const exact = (used / limit) * 100;
+      return { used, limit, pct: Math.min(100, Math.round(exact)), width: used > 0 ? Math.min(100, Math.max(1.5, exact)) : 0, text };
+    };
+    const f = +u.fetches || 0, b = +u.bgMinutes || 0;
+    const bgShown = b > 0 && b < 1 ? 'under 1' : commas(b);
+    const fetches = one(f, +lim.fetches, `${commas(f)} of ${commas(lim.fetches)}`);
+    const bg = one(b, +lim.bgMinutes, `${bgShown} of ${commas(lim.bgMinutes)}`);
+    const warn = fetches.used / fetches.limit * 100 >= WARN_AT || bg.used / bg.limit * 100 >= WARN_AT;
+    let message = '';
+    if (warn) {
+      message = fetches.used / fetches.limit >= bg.used / bg.limit
+        ? `Web requests are at ${fetches.pct}% of Google's daily limit. Checking stops if it runs out, then picks up again.`
+        : `Background time is at ${bg.pct}% of Google's daily limit. Checks while the app is closed stop if it runs out, then pick up again.`;
+    }
+    return { fetches, bg, warn, message };
+  }
+
   return {
     esc, plural, dayNum, todayIso, GROUPS, showGroup, groupShows, fmtDates, ago,
     STATUS_LABEL, statusOf, isGoogle, countRows, workspaceShort, workspaceLabel, rowSub, companyTypeLabel, companyUrl, legalLabel, emailRule, emailKindLabel,
     FILTERS, filterRows, filterCount, summary,
     SECTOR_PRESETS, cleanSector, matchSector, sectorsFrom, searchLinks,
     validUrl, parseShared, validApiUrl, slug, planGrid, planLabel,
-    CSV_COLUMNS, csvCell, toCsv, mergeBySite,
+    CSV_COLUMNS, csvCell, toCsv, mergeBySite, usage,
   };
 });

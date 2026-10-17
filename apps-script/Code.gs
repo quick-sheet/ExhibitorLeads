@@ -25,6 +25,16 @@ const EX_MS = 35 * 1000;            // one exhibitor may spend this long reading
 const MAX_TRIES = 2;                // an exhibitor whose check is cut off this many times is skipped, not retried for ever
 const LATE_NOTE = 'Took too long, so some pages were skipped. Use Check again to try once more';
 
+// What your Google account allows. Google Workspace: 100000 web requests and 360 background minutes a day.
+// A free Google account: 20000 and 90. Change these two numbers if your plan differs.
+const PLAN = { fetches: 100000, bgMinutes: 360 };
+
+// Raise this when the checking gets better, and every result that is not yet confirmed is looked at again once.
+const PROTO = 2;
+
+// Where terms and privacy pages usually live, tried when a site's own links do not lead to them.
+const LEGAL_GUESSES = ['/privacy-policy', '/terms-and-conditions', '/terms-of-use', '/terms', '/privacy', '/legal'];
+
 const SHOW_COLS = ['id', 'name', 'sector', 'start', 'end', 'urls', 'status', 'statusNote', 'addedAt', 'loadedAt'];
 const EX_COLS = ['id', 'showId', 'name', 'stand', 'category', 'blurb', 'website', 'domain', 'detailUrl',
   'phone', 'phoneSrc', 'email', 'emailKind', 'emailSrc', 'contact', 'contactSrc', 'chDirector',
@@ -60,8 +70,11 @@ function route(action, p) {
     if (!routes[action]) return { error: 'Unknown action' };
     if (!prop('TOKEN')) return { error: 'Not set up yet. In Apps Script, choose setup and press Run.' };
     if (typeof p.token !== 'string' || !safeEq(p.token, prop('TOKEN'))) { Utilities.sleep(700); return { error: 'Unauthorised' }; }
-    return routes[action](p);
+    const out = routes[action](p);
+    noteUsage(0);
+    return out;
   } catch (err) {
+    noteUsage(0);
     return { error: String((err && err.message) || err) };
   }
 }
@@ -70,6 +83,7 @@ function route(action, p) {
 function setup() {
   if (!prop('TOKEN')) setProp('TOKEN', (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, ''));
   db();
+  migrateOnce();
   ScriptApp.getProjectTriggers().filter((t) => t.getHandlerFunction() === 'enrichTick').forEach((t) => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('enrichTick').timeBased().everyMinutes(10).create();
   Logger.log('Access token (type it once into the app Settings): ' + prop('TOKEN'));
@@ -79,7 +93,64 @@ function setup() {
 
 /** Runs every 10 minutes: carries on checking exhibitors while no phone is open. */
 function enrichTick() {
+  const t0 = Date.now();
   try { enrichRun({ budget: TICK_BUDGET }); } catch (err) { Logger.log('enrichTick: ' + err); }
+  noteUsage((Date.now() - t0) / 1000);
+}
+
+/* ============================================================
+ * Usage: what this app has asked of your Google account in the last 24 hours.
+ * Google counts per account and across all your scripts, and does not let a script read the real figure,
+ * so this is this app's own count. Google's daily allowances reset 24 hours after first use, hence a rolling window.
+ * ============================================================ */
+
+let _fetched = 0;
+
+function readUsage() {
+  try { const u = JSON.parse(prop('USAGE') || '{}'); return u && typeof u === 'object' ? u : {}; } catch (e) { return {}; }
+}
+
+/** Adds the web requests made so far in this run, and any background seconds, to the current hour. Never throws. */
+function noteUsage(bgSeconds) {
+  const f = _fetched; _fetched = 0;
+  if (!f && !bgSeconds) return;
+  try {
+    withLock(() => {
+      const u = readUsage(), k = new Date().toISOString().slice(0, 13);
+      const cur = u[k] || (u[k] = { f: 0, b: 0 });
+      cur.f += f; cur.b += Math.round(bgSeconds || 0);
+      const keep = Date.now() - 48 * 3600 * 1000;
+      Object.keys(u).forEach((h) => { if (Date.parse(h + ':00:00Z') < keep) delete u[h]; });
+      setProp('USAGE', JSON.stringify(u));
+    });
+  } catch (e) { /* counting must never break a request */ }
+}
+
+function usageInfo() {
+  const u = readUsage(), from = Date.now() - 24 * 3600 * 1000;
+  let f = 0, b = 0;
+  Object.keys(u).forEach((h) => { if (Date.parse(h + ':00:00Z') + 3600 * 1000 > from) { f += u[h].f || 0; b += u[h].b || 0; } });
+  return { fetches: f, bgMinutes: Math.round(b / 6) / 10, limits: { fetches: PLAN.fetches, bgMinutes: PLAN.bgMinutes } };
+}
+
+/**
+ * Once after an upgrade: results that were not confirmed (anything but a company number found on its own site,
+ * or a company you confirmed) go back in the queue, so the better checking looks at them again.
+ */
+function migrateOnce() {
+  if (+prop('PROTO') >= PROTO) return 0;
+  return withLock(() => {
+    if (+prop('PROTO') >= PROTO) return 0;
+    const rows = readTab('Exhibitors', EX_COLS);
+    let n = 0;
+    const vals = rows.map((r) => {
+      if ((r.state === 'done' || r.state === 'error') && r.legal !== 'verified' && r.legalSrc !== 'Confirmed by you') { n++; return ['todo', '']; }
+      return [r.state, r.note];
+    });
+    if (rows.length) db().getSheetByName('Exhibitors').getRange(2, EX_COLS.indexOf('state') + 1, rows.length, 2).setValues(vals);   // state and note sit side by side
+    setProp('PROTO', String(PROTO));
+    return n;
+  });
 }
 
 /* ============================================================
@@ -325,23 +396,56 @@ function extractPhones(html) {
   return out;
 }
 
-/** Finds a UK company number written near words like "Registered in England" or "Company number". */
-function extractCompanyNumber(text) {
+/**
+ * Every UK company number written near words like "Registered in England" or "Company number", in page order.
+ * A six digit number (an Irish company, say) is never taken, because padding it could land on an unrelated UK company.
+ */
+function extractCompanyNumbers(text) {
   const t = String(text || '');
   const num = '((?:SC|NI|OC|SO|NC|LP|SL|FC|SE|SA|NF|NL|GE|IP|SP|RC)\\d{6}|\\d{8}|\\d{7})(?!\\d)';
   const res = [
     new RegExp('(?:company|co\\.?|registered|registration|reg\\.?)\\s*(?:registration\\s*)?(?:number|no\\.?|num\\.?|#)\\s*(?:is|:|-|–)?\\s*' + num, 'gi'),
     new RegExp('registered\\s+in\\s+(?:england(?:\\s*(?:and|&)\\s*wales)?|scotland|wales|northern\\s+ireland)[^0-9A-Za-z]{0,6}(?:company\\s*)?(?:(?:number|no\\.?|num\\.?|#)[^0-9A-Za-z]{0,6})?' + num, 'gi'),
   ];
-  for (const re of res) {
+  const hits = [];
+  res.forEach((re) => {
     let m;
     while ((m = re.exec(t))) {
       let n = m[1].toUpperCase();
       if (/^\d{7}$/.test(n)) n = '0' + n;
-      return n;
+      hits.push({ i: m.index, n });
     }
+  });
+  hits.sort((a, b) => a.i - b.i);
+  const out = [];
+  hits.forEach((h) => { if (out.indexOf(h.n) < 0 && out.length < 4) out.push(h.n); });
+  return out;
+}
+
+function extractCompanyNumber(text) { return extractCompanyNumbers(text)[0] || ''; }
+
+/** Does the page that gave a company number also name the company the register holds under it? */
+function nameInText(name, text) {
+  const k = normKey(name);
+  if (k.length < 3) return false;
+  return (' ' + normKey(text) + ' ').indexOf(' ' + k + ' ') >= 0;
+}
+
+/**
+ * Looks up the numbers an exhibitor's own pages give, up to three. A company whose name appears on the same page
+ * (or that matches the exhibitor's name) wins. A lone number that exists on the register is accepted. Several
+ * numbers with no name to back any of them is too uncertain, so none is taken.
+ */
+function verifyCandidates(cands, name) {
+  let first = null, looked = 0;
+  for (let i = 0; i < cands.length && looked < 3; i++) {
+    const p = chProfile(cands[i].n);
+    looked++;
+    if (!p) continue;
+    if (nameInText(p.name, cands[i].text) || nameScore(name, p.name) >= 0.6) return p;
+    if (!first) first = p;
   }
-  return '';
+  return cands.length === 1 ? first : null;
 }
 
 function personFromNode(n) {
@@ -372,24 +476,25 @@ function extractPerson(html) {
 function findLinks(html, base) {
   const host = (parseUrl(base) || {}).host || '';
   let contact = '';
-  const legal = [];
+  const core = [], more = [];   // terms and privacy pages first: they are where a company number is usually written
   anchors(html).forEach((a) => {
     const u = resolveUrl(base, a.href);
     const p = u && parseUrl(u);
     if (!p || !sameSite(p.host, host)) return;
     const hay = (p.path + ' ' + a.text).toLowerCase();
-    if (!contact && /contact|get[- ]in[- ]touch|enquir/.test(hay) && !/\.(pdf|jpg|png)$/.test(p.path)) contact = p.scheme + '://' + p.host + p.path;
-    if (legal.length < 3 && /terms|privacy|legal|about|imprint|company[- ]info|delivery/.test(hay)) {
-      const full = p.scheme + '://' + p.host + p.path;
-      if (legal.indexOf(full) < 0) legal.push(full);
-    }
+    const full = p.scheme + '://' + p.host + p.path;
+    if (!contact && /contact|get[- ]in[- ]touch|enquir/.test(hay) && !/\.(pdf|jpg|png)$/.test(p.path)) contact = full;
+    if (/\.(pdf|jpe?g|png|gif|svg|webp)$/.test(p.path)) return;
+    if (/terms|privacy|conditions|legal|imprint|company[- ]info|registered/.test(hay)) { if (core.length < 6 && core.indexOf(full) < 0) core.push(full); }
+    else if (/about|delivery|returns|cookie|policies/.test(hay)) { if (more.length < 4 && more.indexOf(full) < 0) more.push(full); }
   });
-  return { contact, legal };
+  return { contact, legal: core.concat(more), core: core.length };
 }
 
 function scanPage(html, url) {
   const text = stripTags(html);
-  return { emails: extractEmails(html), phones: extractPhones(html), number: extractCompanyNumber(text), person: extractPerson(html), links: findLinks(html, url), textLen: text.length };
+  const numbers = extractCompanyNumbers(text);
+  return { emails: extractEmails(html), phones: extractPhones(html), number: numbers[0] || '', numbers, text, person: extractPerson(html), links: findLinks(html, url), textLen: text.length };
 }
 
 /* ============================================================
@@ -603,6 +708,7 @@ function http(url, opts) {
   const o = { method: 'get', muteHttpExceptions: true, followRedirects: false };
   Object.keys(opts || {}).forEach((k) => { o[k] = opts[k]; });
   o.headers = Object.assign({ 'User-Agent': UA, 'Accept': 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.5', 'Accept-Language': 'en-GB,en;q=0.8' }, (opts && opts.headers) || {});
+  _fetched++;
   try {
     const r = UrlFetchApp.fetch(url, o);
     let body = '';
@@ -827,32 +933,43 @@ function enrichOne(ex, ctx) {
     return patch;
   }
 
-  // 3. Read the website: home page, then a contact page and a terms page if something is still missing.
-  let emails = [], phones = [], number = '', person = '';
+  // 3. Read the website: the home page, then a contact page if there is no email yet, then its terms and privacy
+  //    pages one at a time until one gives a company number (they nearly always carry it).
+  let emails = [], phones = [], person = '';
+  const cands = [];     // company numbers written on its own pages: { n, text }
+  const tried = {};
+  const addPage = (s) => {
+    s.emails.forEach((e) => { if (!emails.some((x) => x.email === e.email)) emails.push(e); });
+    s.phones.forEach((q) => { if (phones.indexOf(q) < 0) phones.push(q); });
+    s.numbers.forEach((n) => { if (!cands.some((c) => c.n === n)) cands.push({ n, text: s.text }); });
+    if (!person && s.person) person = s.person;
+  };
+  const readExtra = (u) => {
+    if (tried[u]) return;
+    tried[u] = 1;
+    const pg = fetchPage(u, ctx, 2);
+    if (pg.late) { late = true; return; }
+    if (pg.blocked || !pg.body || pg.code < 200 || pg.code >= 300) return;
+    addPage(scanPage(pg.body, pg.url));
+  };
   if (domain) {
     const home = fetchPage(site + '/', ctx);
     if (home.late) late = true;
     else if (home.blocked) notes.push(home.down ? 'Website did not respond, so it was not read' : 'Site asks automated tools not to read it');
     else if (home.code >= 200 && home.code < 300 && home.body) {
       const pageHost = (parseUrl(home.url) || {}).host;
+      tried[home.url] = 1;
       const s = scanPage(home.body, home.url);
-      emails = s.emails; phones = s.phones; number = s.number; person = s.person;
+      addPage(s);
       if (s.textLen < 200) notes.push('Site loads its content with JavaScript, so little could be read');
-      const extra = [];
-      if (!emails.length && s.links.contact) extra.push(s.links.contact);
-      if (!number) s.links.legal.slice(0, 2).forEach((u) => extra.push(u));
-      extra.slice(0, 3).forEach((u) => {
-        const pg = fetchPage(u, ctx, 2);
-        if (pg.late) { late = true; return; }
-        if (pg.blocked || !pg.body || pg.code < 200 || pg.code >= 300) return;
-        const t = scanPage(pg.body, pg.url);
-        t.emails.forEach((e) => { if (!emails.some((x) => x.email === e.email)) emails.push(e); });
-        t.phones.forEach((q) => { if (phones.indexOf(q) < 0) phones.push(q); });
-        if (!number && t.number) number = t.number;
-        if (!person && t.person) person = t.person;
-        if (!emails.length || emails.every((e) => !e.mailto)) { /* keep scanning remaining pages */ }
-      });
-      if (pageHost && emails.length === 0 && number === '' && s.textLen >= 200) notes.push('No email or company number found on the pages read');
+      if (!emails.length && s.links.contact) readExtra(s.links.contact);
+      if (!cands.length && ex.legalSrc !== 'Confirmed by you' && prop('CH_KEY')) {
+        const queue = s.links.legal.slice(0, 3);
+        const origin = originOf(home.url);
+        LEGAL_GUESSES.slice(0, s.links.core === 0 ? 4 : s.links.core === 1 ? 2 : 0).forEach((g) => queue.push(origin + g));
+        for (let i = 0; i < queue.length && !cands.length && !late; i++) readExtra(queue[i]);
+      }
+      if (pageHost && emails.length === 0 && !cands.length && s.textLen >= 200) notes.push('No email or company number found on the pages read');
     } else notes.push('Website did not open' + (home.code ? ' (' + home.code + ')' : ''));
   } else if (!site && !late) notes.push('No website');
 
@@ -880,7 +997,7 @@ function enrichOne(ex, ctx) {
   } else {
     try {
       let co = null, how = '', legal = 'none';
-      if (number) { co = chProfile(number); if (co) { legal = 'verified'; how = 'Company number on its website'; } }
+      if (cands.length) { co = verifyCandidates(cands, ex.name); if (co) { legal = 'verified'; how = 'Company number on its website'; } }
       if (!co) {
         const hit = chSearch(ex.name);
         if (hit && hit.raw >= 0.6) { co = hit.c; legal = hit.raw >= 1 && co.status === 'active' ? 'likely' : 'possible'; how = hit.raw >= 1 ? 'Same name on Companies House' : 'Similar name on Companies House'; }
@@ -990,14 +1107,15 @@ function ping() { return { ok: true, v: VERSION }; }
 function status() {
   let trigger = false;
   try { trigger = ScriptApp.getProjectTriggers().some((t) => t.getHandlerFunction() === 'enrichTick'); } catch (e) { trigger = false; }
-  return { ok: true, v: VERSION, ch: !!prop('CH_KEY'), trigger, sheetUrl: db().getUrl() };
+  return { ok: true, v: VERSION, ch: !!prop('CH_KEY'), trigger, sheetUrl: db().getUrl(), usage: usageInfo() };
 }
 
 function list() {
+  migrateOnce();
   const shows = readTab('Shows', SHOW_COLS), ex = readTab('Exhibitors', EX_COLS);
   const by = {};
   ex.forEach((r) => { (by[r.showId] = by[r.showId] || []).push(r); });
-  return { shows: shows.map((s) => Object.assign(pubShow(s), { counts: counts(by[s.id] || []) })), v: VERSION };
+  return { shows: shows.map((s) => Object.assign(pubShow(s), { counts: counts(by[s.id] || []) })), v: VERSION, usage: usageInfo() };
 }
 
 function cleanUrls(text) {
@@ -1169,6 +1287,7 @@ function claimNext(showId, skipped) {
 function pendingCount(showId) { return readTab('Exhibitors', EX_COLS).filter((x) => (!showId || x.showId === showId) && (x.state === 'todo' || x.state === '' || x.state === 'working')).length; }
 
 function enrichRun(p) {
+  migrateOnce();
   const budget = Math.min(+p.budget || 20, MAX_BUDGET) * 1000, t0 = Date.now();
   const ctx = newCtx();
   const changed = [], skipped = [];
@@ -1189,9 +1308,10 @@ function enrichRun(p) {
     });
     if (saved) { changed.push(pubEx(saved)); registerDonor(ctx, saved); }
     processed++;
+    noteUsage(0);
   }
   skipped.forEach((x) => { errors++; changed.push(x); });   // exhibitors given up on while looking for the next one
-  return { processed, errors, pending: pendingCount(p.showId ? String(p.showId) : ''), changed };
+  return { processed, errors, pending: pendingCount(p.showId ? String(p.showId) : ''), changed, usage: usageInfo() };
 }
 
 function enrich(p) { return enrichRun(p); }
