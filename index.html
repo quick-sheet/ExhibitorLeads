@@ -1,0 +1,1123 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Exhibitor Leads</title>
+<meta name="description" content="Find who exhibits at UK shows and who you can email.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0F1528">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Exhibitor Leads">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600&display=swap">
+<style>
+:root {
+  --bg: #0F1528;
+  --raise: #161E37;
+  --raise-2: #1D2645;
+  --line: rgba(205, 214, 245, .09);
+  --line-2: rgba(205, 214, 245, .17);
+  --ink: #ECE8DF;
+  --ink-2: #A3ABC2;
+  --ink-3: #6E7794;
+  --sun: #F2C063;
+  --sun-soft: rgba(242, 192, 99, .17);
+  --on-sun: #1D1505;
+  --dome-in: #0A0F21;
+  --dome-out: #1A2448;
+  --sans: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+:root[data-theme="red"] {
+  --bg: #0C0404; --raise: #160707; --raise-2: #1F0A0A;
+  --line: rgba(255, 90, 70, .12); --line-2: rgba(255, 90, 70, .22);
+  --ink: #E2573F; --ink-2: #A9412F; --ink-3: #74291F;
+  --sun: #FF5B3D; --sun-soft: rgba(255, 91, 61, .18); --on-sun: #1A0503;
+  --dome-in: #070202; --dome-out: #1E0808;
+}
+:root[data-theme="amber"] {
+  --bg: #0D0904; --raise: #171008; --raise-2: #20170C;
+  --line: rgba(255, 190, 110, .10); --line-2: rgba(255, 190, 110, .20);
+  --ink: #EBC48A; --ink-2: #A98A5C; --ink-3: #6F5A3B;
+  --sun: #FFB04A; --sun-soft: rgba(255, 176, 74, .18); --on-sun: #1A0F02;
+  --dome-in: #080502; --dome-out: #241809;
+}
+:root[data-theme="sea"] {
+  --bg: #06121A; --raise: #0B1C26; --raise-2: #102632;
+  --line: rgba(150, 220, 230, .09); --line-2: rgba(150, 220, 230, .18);
+  --ink: #D6E9EC; --ink-2: #8EAEB4; --ink-3: #5A7880;
+  --sun: #6FD9D0; --sun-soft: rgba(111, 217, 208, .16); --on-sun: #031513;
+  --dome-in: #030B10; --dome-out: #0F2A38;
+}
+:root[data-theme="aurora"] {
+  --bg: #07110D; --raise: #0C1A14; --raise-2: #11241B;
+  --line: rgba(150, 235, 190, .09); --line-2: rgba(150, 235, 190, .18);
+  --ink: #D7EBDF; --ink-2: #8DAA9A; --ink-3: #5A7566;
+  --sun: #86E3A8; --sun-soft: rgba(134, 227, 168, .16); --on-sun: #04140B;
+  --dome-in: #040A07; --dome-out: #12291E;
+}
+:root[data-theme="dusk"] {
+  --bg: #110D1A; --raise: #1A1426; --raise-2: #221A31;
+  --line: rgba(210, 190, 255, .09); --line-2: rgba(210, 190, 255, .18);
+  --ink: #E8E1F4; --ink-2: #A79CBD; --ink-3: #6E6485;
+  --sun: #F2A7C8; --sun-soft: rgba(242, 167, 200, .16); --on-sun: #1E0812;
+  --dome-in: #0A0712; --dome-out: #261C3A;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 16px/1.45 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  min-height: 100vh;
+}
+button, input, textarea { font: inherit; color: inherit; }
+button { background: none; border: 0; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--sun); outline-offset: 2px; border-radius: 8px; }
+.num { font-variant-numeric: tabular-nums; }
+.wrap { max-width: 34rem; margin: 0 auto; padding: 0 20px 48px; position: relative; }
+
+/* Header */
+header { display: grid; grid-template-columns: 1fr auto; align-items: start; padding: 18px 0 6px; }
+.brand { display: flex; align-items: flex-start; gap: 2px; min-width: 0; }
+.back { margin: -10px 0 0 -12px; flex: none; }
+.mark { font-weight: 600; font-size: 17px; letter-spacing: -.01em; }
+.where { display: block; font-size: 13px; color: var(--ink-3); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.where:empty { display: none; }
+.tools { display: flex; gap: 4px; margin: -10px -8px 0 0; }
+.icon-btn { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-2); flex: none; }
+.icon-btn:active { background: var(--raise); }
+.icon-btn svg { width: 22px; height: 22px; }
+
+/* Notices */
+.notice { display: flex; gap: 12px; align-items: center; margin: 10px 0 0; padding: 10px 12px 10px 14px; border-radius: 14px; background: var(--raise); font-size: 14px; color: var(--ink-2); }
+.notice p { margin: 0; flex: 1; }
+.notice .link-btn { color: var(--sun); font-weight: 600; white-space: nowrap; text-decoration: none; }
+.notice .x { color: var(--ink-3); width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; }
+.notice .x svg { width: 16px; height: 16px; }
+
+/* Hero */
+.hero { padding: 8px 0 22px; }
+.plan { display: block; width: min(100%, 320px); height: auto; margin: 8px auto 20px; overflow: visible; }
+.plan .hall { fill: var(--raise); stroke: var(--line-2); }
+.plan .c-c { fill: var(--sun); }
+.plan .c-k { fill: var(--ink-2); }
+.plan .c-n { fill: var(--ink-3); }
+.plan .c-p { fill: none; stroke: var(--ink-3); stroke-width: 1.2; }
+.plan .c-e { fill: none; stroke: var(--line-2); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.sat-name { margin: 0; font-size: 26px; line-height: 1.15; font-weight: 600; letter-spacing: -.015em; overflow-wrap: anywhere; }
+.when { margin: 4px 0 0; font-size: 15px; color: var(--ink-2); }
+.story { margin: 14px 0 0; font-size: 18px; font-weight: 300; line-height: 1.55; letter-spacing: .005em; color: var(--ink); max-width: 30em; }
+.facts { margin: 10px 0 0; font-size: 14px; color: var(--ink-2); }
+.empty-title { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
+.empty-body { margin: 8px 0 0; color: var(--ink-2); max-width: 28em; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.btn { height: 44px; padding: 0 18px; border-radius: 22px; background: var(--raise-2); font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
+.btn.primary { background: var(--sun); color: var(--on-sun); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn svg { width: 18px; height: 18px; flex: none; }
+.link-btn { color: var(--ink-2); font-size: 14px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-2); }
+.progress { margin: 14px 0 0; }
+.bar { height: 6px; border-radius: 3px; background: var(--raise-2); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--sun); border-radius: 3px; transition: width .4s ease; }
+.progress p { margin: 6px 0 0; font-size: 13.5px; color: var(--ink-2); }
+
+/* Forms */
+.field { width: 100%; min-width: 0; height: 44px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg); padding: 0 12px; font-size: 16px; }
+textarea.field { height: auto; min-height: 96px; padding: 10px 12px; resize: vertical; line-height: 1.4; }
+.field::placeholder { color: var(--ink-3); }
+.lbl { display: block; margin: 16px 0 6px; font-size: 14px; font-weight: 500; color: var(--ink-2); }
+.hint { margin: 6px 0 0; font-size: 13px; color: var(--ink-3); }
+.field-row { display: flex; gap: 8px; margin-top: 10px; }
+.field-row .field { flex: 1; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.search-form { margin: 18px 0 0; }
+.search-form .field-row { margin-top: 0; }
+
+/* Chips */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { min-height: 36px; padding: 0 14px; border-radius: 18px; background: var(--raise-2); font-size: 14px; font-weight: 500; color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.chip[aria-pressed="true"] { background: var(--sun); color: var(--on-sun); }
+.chip .n { font-size: 12.5px; opacity: .8; }
+.filters { margin: 4px 0 0; }
+.quiet-search { margin: 12px 0 0; }
+
+/* Lists */
+.day { margin: 26px 0 2px; font-size: 14px; font-weight: 500; color: var(--ink-3); }
+.section-title { margin: 32px 0 2px; font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+.section-note { margin: 2px 0 0; font-size: 13.5px; color: var(--ink-3); }
+.item, .ex { border-bottom: 1px solid var(--line); }
+.item-main, .ex-main { width: 100%; display: grid; align-items: center; text-align: left; min-width: 0; }
+.item-main { grid-template-columns: 1fr 18px; column-gap: 12px; padding: 14px 0; min-height: 56px; }
+.ex-main { grid-template-columns: 12px 1fr 18px; column-gap: 12px; padding: 12px 0; min-height: 60px; }
+.item-main > svg, .ex-main > svg { width: 18px; height: 18px; color: var(--ink-3); }
+.item-name, .ex-name { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-sub, .ex-sub { display: block; font-size: 13.5px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ex-sub.dim { color: var(--ink-3); }
+.ex-t { min-width: 0; }
+.dot { width: 12px; height: 12px; border-radius: 3px; }
+.dot.corporate { background: var(--sun); }
+.dot.check { background: var(--ink-2); }
+.dot.consent { background: var(--ink-3); }
+.dot.pending { border: 1.5px solid var(--ink-3); }
+.more-btn { display: block; width: 100%; padding: 14px 0; text-align: left; font-size: 14px; font-weight: 500; color: var(--ink-2); border-bottom: 1px solid var(--line); }
+.empty-list { margin: 18px 0 0; color: var(--ink-2); }
+.foot { margin-top: 36px; font-size: 12.5px; color: var(--ink-3); }
+
+/* Sheets */
+dialog.sheet {
+  position: fixed; inset: auto 0 0 0; margin: 0 auto; width: 100%; max-width: 34rem; max-height: 90vh;
+  border: 0; border-radius: 22px 22px 0 0; padding: 0; background: var(--raise); color: var(--ink);
+  overflow: auto; overscroll-behavior: contain;
+}
+dialog.sheet[open] { animation: rise .28s cubic-bezier(.2, .8, .2, 1); }
+dialog.sheet::backdrop { background: rgba(4, 6, 14, .62); }
+@keyframes rise { from { transform: translateY(40px); opacity: 0; } }
+.sheet-in { padding: 10px 22px calc(28px + env(safe-area-inset-bottom)); }
+.grabber { width: 36px; height: 4px; border-radius: 2px; background: var(--line-2); margin: 0 auto 10px; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sheet-head h2 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.sheet h3 { margin: 26px 0 6px; font-size: 15px; font-weight: 600; }
+.sheet p { margin: 6px 0; color: var(--ink-2); font-size: 15px; }
+.sheet .small, .small { font-size: 13.5px; color: var(--ink-3); }
+.sheet .chips { margin-top: 10px; }
+.kv { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.kv:last-child { border-bottom: 0; }
+.kv .k { display: block; font-size: 13px; color: var(--ink-3); }
+.kv .v { display: block; font-size: 16px; color: var(--ink); overflow-wrap: anywhere; user-select: text; }
+.kv .v a { text-underline-offset: 3px; text-decoration-color: var(--line-2); }
+.kv .s { display: block; font-size: 13px; color: var(--ink-3); margin-top: 1px; }
+.menu { margin: 14px 0 0; }
+.menu button { display: block; width: 100%; text-align: left; padding: 15px 0; min-height: 52px; border-bottom: 1px solid var(--line); font-weight: 500; font-size: 16px; }
+.menu button small { display: block; font-weight: 400; font-size: 13.5px; color: var(--ink-3); margin-top: 1px; }
+.menu button:last-child { border-bottom: 0; }
+.tag { display: inline-block; padding: 3px 10px; border-radius: 12px; background: var(--raise-2); font-size: 13px; font-weight: 500; color: var(--ink-2); margin: 10px 8px 0 0; }
+.tag.corporate { background: var(--sun); color: var(--on-sun); }
+.code { display: inline-block; margin-top: 8px; padding: 6px 10px; border-radius: 8px; background: var(--bg); color: var(--ink); font-size: 14px; word-break: break-all; user-select: all; }
+.status-box { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: var(--bg); font-size: 14px; color: var(--ink-2); }
+.status-box p { margin: 2px 0; font-size: 14px; }
+
+/* Popovers */
+.pop { position: absolute; top: 64px; right: 12px; z-index: 5; width: min(300px, calc(100% - 24px)); padding: 16px 12px 12px; border-radius: 18px;
+  background: var(--raise); border: 1px solid var(--line-2); box-shadow: 0 18px 40px rgba(0, 0, 0, .45); animation: drop .18s ease-out; transform-origin: top right; }
+@keyframes drop { from { opacity: 0; transform: translateY(-6px) scale(.98); } }
+.theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 6px; }
+.theme-opt { display: grid; justify-items: center; gap: 6px; padding: 4px 0; font-size: 12.5px; color: var(--ink-2); }
+.theme-opt[aria-pressed="true"] { color: var(--ink); }
+.sw { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line-2);
+  background: radial-gradient(circle, var(--b) 0 6px, transparent 7px), radial-gradient(circle at 50% 35%, var(--c), var(--a)); }
+.theme-opt[aria-pressed="true"] .sw { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--sun); }
+.theme-note { margin: 12px 4px 0; font-size: 12.5px; color: var(--ink-3); }
+
+/* Toast */
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+  background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 22px; font-size: 14px; font-weight: 500; transition: opacity .2s, transform .2s; max-width: calc(100% - 40px); text-align: center; z-index: 30; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <button class="icon-btn back" id="back" type="button" data-act="back" aria-label="Back" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <div>
+        <div class="mark">Exhibitor Leads</div>
+        <span class="where" id="where"></span>
+      </div>
+    </div>
+    <div class="tools">
+      <button class="icon-btn" id="themeBtn" type="button" aria-expanded="false" aria-haspopup="true" aria-controls="themes" aria-label="Colour theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+      </button>
+    </div>
+  </header>
+  <div class="pop" id="themes" hidden role="group" aria-label="Colour theme"></div>
+  <div id="notices"></div>
+  <main id="main" aria-live="polite"></main>
+  <p class="foot" id="foot">A guide only, not legal advice. Emailing a limited company still needs your name, a relevant offer and a way to opt out. Company details come from Companies House. Pages are read politely and only where the site allows it.</p>
+</div>
+
+<dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="core.js?v=1"></script>
+<script>
+(() => {
+'use strict';
+const C = window.Core;
+const LOAD_FAIL = '<section class="hero"><h1 class="empty-title">Exhibitor Leads could not load</h1><p class="empty-body">Part of the app did not arrive. Close it fully and open it again.</p></section>';
+if (!C) { document.getElementById('main').innerHTML = LOAD_FAIL; return; }
+
+/* ---------- Platform ---------- */
+const UA = navigator.userAgent;
+const isIOS = /iP(hone|ad|od)/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+/* ---------- Storage ---------- */
+const P = 'exl.';
+const get = (k, d) => { try { const v = localStorage.getItem(P + k); return v == null ? d : JSON.parse(v); } catch { return d; } };
+const put = (k, v) => { try { localStorage.setItem(P + k, JSON.stringify(v)); } catch {} };
+const drop = (k) => { try { localStorage.removeItem(P + k); } catch {} };
+
+const THEMES = [
+  { id: 'twilight', name: 'Twilight', bg: '#0F1528', dome: '#1A2448', accent: '#F2C063' },
+  { id: 'red', name: 'Night red', bg: '#0C0404', dome: '#1E0808', accent: '#FF5B3D' },
+  { id: 'amber', name: 'Amber', bg: '#0D0904', dome: '#241809', accent: '#FFB04A' },
+  { id: 'sea', name: 'Deep sea', bg: '#06121A', dome: '#0F2A38', accent: '#6FD9D0' },
+  { id: 'aurora', name: 'Aurora', bg: '#07110D', dome: '#12291E', accent: '#86E3A8' },
+  { id: 'dusk', name: 'Dusk', bg: '#110D1A', dome: '#261C3A', accent: '#F2A7C8' },
+];
+
+const S = {
+  api: get('api', null),            // { url, token }
+  shows: get('shows', []),
+  showsAt: get('showsAt', 0),
+  rows: {},                         // showId -> rows
+  route: { v: 'home' },
+  filter: 'all', q: '', limit: 200,
+  set: Object.assign({ theme: 'twilight', lastSector: '' }, get('settings', {})),
+  status: get('status', null),
+  offline: false, offlineMsg: '',
+  installEvt: null,
+  shared: null,
+  busy: {},
+};
+const E = { running: false, stop: false, showId: null, idle: 0 };   // the checking loop
+const saveSet = () => put('settings', S.set);
+
+/* ---------- Helpers ---------- */
+const $ = (s, el = document) => el.querySelector(s);
+const esc = C.esc;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const showById = (id) => S.shows.find((s) => s.id === id);
+const today = () => C.todayIso();
+
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), Math.max(2600, msg.length * 55));
+}
+
+const ICON = {
+  chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>',
+};
+
+/* ---------- Talking to the sheet ---------- */
+class ApiError extends Error {}
+
+async function call(action, data, ms) {
+  if (!S.api) throw new ApiError('Connect your sheet first');
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), ms || 60000);
+  let j;
+  try {
+    const r = await fetch(S.api.url, { method: 'POST', body: JSON.stringify(Object.assign({ action, token: S.api.token }, data || {})), signal: ctl.signal });
+    j = await r.json();
+  } catch (e) {
+    const err = new Error(e && e.name === 'AbortError' ? 'Your sheet took too long to answer' : 'Could not reach your sheet');
+    err.net = true;
+    throw err;
+  } finally { clearTimeout(timer); }
+  if (j && j.error) throw new ApiError(j.error === 'Unauthorised' ? 'The token is not right. Check it in Settings.' : j.error);
+  return j || {};
+}
+
+function setOffline(err) {
+  S.offline = !!(err && err.net);
+  S.offlineMsg = err ? err.message : '';
+  renderNotices();
+}
+
+/* ---------- Data ---------- */
+function totals() {
+  const t = { total: 0, done: 0, corporate: 0, consent: 0, check: 0, google: 0, pending: 0 };
+  S.shows.forEach((s) => { const c = s.counts || {}; Object.keys(t).forEach((k) => { t[k] += c[k] || 0; }); });
+  return t;
+}
+
+async function refreshShows() {
+  if (!S.api) return false;
+  try {
+    const j = await call('list');
+    const changed = JSON.stringify(j.shows || []) !== JSON.stringify(S.shows);
+    S.shows = j.shows || [];
+    S.showsAt = Date.now();
+    put('shows', S.shows); put('showsAt', S.showsAt);
+    setOffline(null);
+    if (changed && (S.route.v === 'home' || S.route.v === 'sector')) renderMain();
+    return true;
+  } catch (e) { setOffline(e); if (!e.net) toast(e.message); return false; }
+}
+
+function cachedRows(id) { return get('rows.' + id, []); }
+function saveRows(id) {
+  put('rows.' + id, S.rows[id] || []);
+  let ids = get('rowIds', []).filter((x) => x !== id);
+  ids.unshift(id);
+  ids.slice(6).forEach((old) => drop('rows.' + old));
+  put('rowIds', ids.slice(0, 6));
+}
+function syncCounts(id) {
+  const s = showById(id);
+  if (s && S.rows[id]) { s.counts = C.countRows(S.rows[id]); put('shows', S.shows); }
+}
+async function fetchRows(id) {
+  const j = await call('rows', { showId: id });
+  S.rows[id] = j.rows || [];
+  saveRows(id); syncCounts(id);
+  setOffline(null);
+}
+function mergeRows(id, changed) {
+  if (!changed || !changed.length) return;
+  const list = S.rows[id] || (S.rows[id] = []);
+  const at = new Map(list.map((r, i) => [r.id, i]));
+  changed.forEach((r) => { if (at.has(r.id)) list[at.get(r.id)] = r; else { at.set(r.id, list.length); list.push(r); } });
+  saveRows(id); syncCounts(id);
+}
+const rowById = (id) => { const l = S.rows[S.route.showId] || []; return l.find((r) => r.id === id); };
+
+/* ---------- Checking loop ---------- */
+async function runChecks(id) {
+  if (E.running) return;
+  const show = showById(id);
+  if (!show) return;
+  Object.assign(E, { running: true, stop: false, showId: id, idle: 0 });
+  updateShow();
+  try {
+    while (!E.stop && S.route.v === 'show' && S.route.showId === id && document.visibilityState === 'visible') {
+      const r = await call('enrich', { showId: id, budget: 20 }, 70000);
+      mergeRows(id, r.changed);
+      setOffline(null);
+      updateShow();
+      if (r.pending <= 0) break;
+      if (!r.processed) {
+        // someone else (the background check) has the rest: look again shortly
+        if (++E.idle > 20) break;
+        await sleep(8000);
+        await fetchRows(id).catch(() => {});
+        updateShow();
+        if (!(S.rows[id] || []).some((x) => C.statusOf(x) === 'pending')) break;
+      } else E.idle = 0;
+    }
+  } catch (e) {
+    setOffline(e);
+    if (!e.net) toast(e.message);
+  } finally {
+    E.running = false;
+    updateShow();
+  }
+}
+function ensureChecking() {
+  const id = S.route.showId;
+  if (S.route.v === 'show' && id && (S.rows[id] || []).some((r) => C.statusOf(r) === 'pending') && !E.running && !E.userPaused) runChecks(id);
+}
+
+/* ---------- Routing ---------- */
+function go(route, replace) {
+  S.route = route;
+  S.filter = 'all'; S.q = ''; S.limit = 200;
+  if (replace) history.replaceState({ r: route }, ''); else history.pushState({ r: route }, '');
+  E.userPaused = false;
+  enter();
+  window.scrollTo(0, 0);
+}
+window.addEventListener('popstate', (e) => {
+  S.route = (e.state && e.state.r) || { v: 'home' };
+  S.filter = 'all'; S.q = ''; S.limit = 200;
+  closeSheet(); closePops();
+  enter();
+});
+async function enter() {
+  render();
+  const r = S.route;
+  if (r.v === 'show') {
+    const id = r.showId;
+    if (!S.rows[id]) S.rows[id] = cachedRows(id);
+    updateShow();
+    try { await fetchRows(id); } catch (e) { setOffline(e); if (!e.net) toast(e.message); }
+    if (S.route.showId !== id) return;
+    updateShow();
+    ensureChecking();
+  } else if (S.api) refreshShows();
+}
+
+/* ---------- Rendering: shell ---------- */
+function render() {
+  renderHeader();
+  renderNotices();
+  renderMain();
+}
+
+function renderHeader() {
+  const r = S.route;
+  $('#back').hidden = r.v === 'home';
+  let where = '';
+  if (r.v === 'home') where = S.api ? (S.shows.length ? C.plural(S.shows.length, 'exhibition') : 'Ready') : 'Not connected';
+  else if (r.v === 'sector') where = 'Sector';
+  else { const s = showById(r.showId); where = s ? s.sector : ''; }
+  $('#where').textContent = where;
+}
+
+function renderNotices() {
+  const out = [];
+  const dismissed = get('dismissed', {});
+  if (S.offline && S.api) out.push(`<div class="notice"><p>${esc(S.offlineMsg || 'Could not reach your sheet')}. Showing what is saved on this phone.</p><button class="link-btn" type="button" data-act="retry">Retry</button></div>`);
+  if (!standalone && !dismissed.install) {
+    if (S.installEvt) out.push(`<div class="notice"><p>Add Exhibitor Leads to your home screen for one-tap access.</p><button class="link-btn" type="button" data-act="install">Install</button><button class="x" type="button" data-dismiss="install" aria-label="Dismiss">${ICON.x}</button></div>`);
+    else if (isIOS) out.push(`<div class="notice"><p>Add Exhibitor Leads to your Home Screen: tap Share, then Add to Home Screen.</p><button class="x" type="button" data-dismiss="install" aria-label="Dismiss">${ICON.x}</button></div>`);
+  }
+  $('#notices').innerHTML = out.join('');
+}
+
+function renderMain() {
+  const r = S.route;
+  const typed = $('#sectorIn'), keep = typed ? { v: typed.value, focus: document.activeElement === typed } : null;
+  $('#main').innerHTML = r.v === 'sector' ? sectorHtml(r.sector) : r.v === 'show' ? showShellHtml() : homeHtml();
+  const again = $('#sectorIn');
+  if (keep && again) { again.value = keep.v; if (keep.focus) again.focus(); }
+  renderHeader();
+  if (r.v === 'show') updateShow();
+}
+
+/* ---------- Stand plan ---------- */
+function planSvg(c) {
+  const g = C.planGrid(c || {}, { width: 300 });
+  if (!g.cells.length) {
+    const cells = [];
+    for (let i = 0; i < 24; i++) cells.push(`<rect class="c-e" x="${(i % 8) * 36}" y="${Math.floor(i / 8) * 36}" width="30" height="30" rx="3"/>`);
+    return `<svg class="plan" viewBox="-8 -8 316 118" role="img" aria-label="An empty stand plan"><rect class="hall" x="-8" y="-8" width="316" height="118" rx="12"/>${cells.join('')}</svg>`;
+  }
+  const rx = Math.min(4, g.size / 4).toFixed(1);
+  const cells = g.cells.map((c2) => `<rect class="c-${c2.k}" x="${c2.x}" y="${c2.y}" width="${g.size}" height="${g.size}" rx="${rx}"/>`).join('');
+  return `<svg class="plan" viewBox="-8 -8 ${g.w + 16} ${g.h + 16}" role="img" aria-label="${esc(C.planLabel(c))}"><rect class="hall" x="-8" y="-8" width="${g.w + 16}" height="${g.h + 16}" rx="12"/>${cells}</svg>`;
+}
+
+/* ---------- Home ---------- */
+function homeHtml() {
+  if (!S.api) {
+    return `<section class="hero">${planSvg(null)}
+      <h1 class="empty-title">Connect your sheet</h1>
+      <p class="empty-body">Exhibitor Leads keeps everything in your own Google Sheet. Add the web app address and token once, and it is ready.</p>
+      <div class="actions"><button class="btn primary" type="button" data-act="settings">Connect</button></div></section>`;
+  }
+  const t = totals(), sectors = C.sectorsFrom(S.shows);
+  const has = S.shows.length > 0;
+  const lead = has
+    ? `${C.plural(S.shows.length, 'exhibition')} in ${C.plural(sectors.length, 'sector')}. ${t.total ? C.summary(t, {}) : 'No exhibitors loaded yet.'}`
+    : 'Type a sector, such as baby, whisky or crafts. You get searches to find the shows, then Exhibitor Leads reads each exhibitor list for you.';
+  const presets = C.SECTOR_PRESETS.filter((p) => !sectors.some((s) => s.name.toLowerCase() === p.toLowerCase()));
+  return `<section class="hero">${planSvg(t.total ? t : null)}
+      <h1 class="empty-title">${has ? 'Your leads' : 'Who are you selling to?'}</h1>
+      <p class="${has ? 'story' : 'empty-body'}">${esc(lead)}</p>
+      <form class="search-form" id="sectorForm"><label class="lbl" for="sectorIn" style="margin-top:0">Sector</label>
+        <div class="field-row"><input class="field" id="sectorIn" placeholder="For example whisky" autocomplete="off" enterkeyhint="go" maxlength="40"><button class="btn primary" type="submit">Find shows</button></div></form>
+    </section>
+    <div class="chips" role="group" aria-label="Suggested sectors">${presets.slice(0, 8).map((p) => `<button class="chip" type="button" data-sector="${esc(p)}">${esc(p)}</button>`).join('')}</div>
+    ${sectors.length ? `<h2 class="section-title">Your sectors</h2>${sectors.map(sectorRow).join('')}` : ''}`;
+}
+
+function sectorRow(s) {
+  const bits = [C.plural(s.shows, 'exhibition')];
+  if (s.total) bits.push(C.plural(s.total, 'exhibitor'));
+  if (s.corporate) bits.push(`${s.corporate} can email`);
+  return `<div class="item"><button class="item-main" type="button" data-sector="${esc(s.name)}"><span><span class="item-name">${esc(s.name)}</span><span class="item-sub num">${esc(bits.join(', '))}</span></span>${ICON.chev}</button></div>`;
+}
+
+/* ---------- Sector ---------- */
+function sectorHtml(sector) {
+  const shows = S.shows.filter((s) => s.sector === sector);
+  const t = { total: 0, done: 0, corporate: 0, consent: 0, check: 0, google: 0, pending: 0 };
+  shows.forEach((s) => { const c = s.counts || {}; Object.keys(t).forEach((k) => { t[k] += c[k] || 0; }); });
+  const links = C.searchLinks(sector);
+  const groups = C.groupShows(shows, today());
+  const lead = shows.length ? `${C.plural(shows.length, 'exhibition')}. ${t.total ? C.summary(t, {}) : 'No exhibitors loaded yet.'}` : 'No exhibitions yet. Run one of the searches below, open a show’s exhibitor list, then add it here.';
+  return `<section class="hero">${planSvg(t.total ? t : null)}
+      <h1 class="sat-name">${esc(sector)}</h1>
+      <p class="${shows.length ? 'story' : 'empty-body'}">${esc(lead)}</p>
+      <div class="actions"><button class="btn primary" type="button" data-act="add-show">Add exhibition</button>
+      ${t.total ? `<button class="btn" type="button" data-act="sector-csv">${ICON.down}Download CSV</button>` : ''}</div>
+    </section>
+    <h2 class="section-title" style="margin-top:8px">Find exhibitions</h2>
+    <p class="section-note">These open a Google search in a new tab. Find a show’s exhibitor list, then share it to Exhibitor Leads or copy its address.</p>
+    <div class="chips" style="margin-top:12px">${links.map((l) => `<a class="chip" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join('')}</div>
+    ${groups.map((g) => `<h2 class="day">${esc(g.label)}</h2>${g.shows.map(showRow).join('')}`).join('')}`;
+}
+
+function showRow(s) {
+  const c = s.counts || {};
+  let sub;
+  if (!c.total) sub = s.status === 'loaded' ? 'No exhibitors found' : s.status === 'blocked' || s.status === 'empty' || s.status === 'error' ? 'Needs a pasted list' : 'Not loaded yet';
+  else if (c.pending) sub = `Checking ${c.done} of ${c.total}`;
+  else sub = `${C.plural(c.total, 'exhibitor')}, ${c.corporate} can email`;
+  return `<div class="item"><button class="item-main" type="button" data-show="${esc(s.id)}"><span><span class="item-name">${esc(s.name)}</span><span class="item-sub num">${esc(C.fmtDates(s.start, s.end))}</span><span class="item-sub num">${esc(sub)}</span></span>${ICON.chev}</button></div>`;
+}
+
+/* ---------- Show ---------- */
+function showShellHtml() {
+  const s = showById(S.route.showId);
+  if (!s) return `<section class="hero"><h1 class="empty-title">Exhibition not found</h1><p class="empty-body">It may have been deleted. Go back and choose another.</p></section>`;
+  return `<section class="hero" id="showHero"></section>
+    <div id="showFilters"></div>
+    <div id="showRows"></div>`;
+}
+
+function showActions(s, c) {
+  const running = E.running && E.showId === s.id;
+  if (!c.total) {
+    const bad = s.status === 'blocked' || s.status === 'empty' || s.status === 'error';
+    if (s.urls.length && !bad) return `<button class="btn primary" type="button" data-act="load">Load exhibitor list</button><button class="btn" type="button" data-act="paste">Paste a list</button>`;
+    return `<button class="btn primary" type="button" data-act="paste">Paste the list</button>${!s.urls.length ? '<button class="btn" type="button" data-act="edit-show">Add a link</button>' : s.status === 'blocked' ? '<button class="btn" type="button" data-act="edit-show">Change the link</button>' : '<button class="btn" type="button" data-act="load">Try the link again</button>'}`;
+  }
+  let out = '';
+  if (c.pending) out += running ? '<button class="btn" type="button" data-act="pause">Pause checking</button>' : '<button class="btn primary" type="button" data-act="resume">Keep checking</button>';
+  out += `<button class="btn${c.pending ? '' : ' primary'}" type="button" data-act="csv">${ICON.down}Download CSV</button>`;
+  return out;
+}
+
+function updateShow() {
+  if (S.route.v !== 'show') return;
+  const s = showById(S.route.showId), hero = $('#showHero');
+  if (!s || !hero) return;
+  const rows = S.rows[s.id] || [];
+  const c = rows.length ? C.countRows(rows) : (s.counts || C.countRows([]));
+  const group = C.GROUPS.find((g) => g.id === C.showGroup(s, today()));
+  const running = E.running && E.showId === s.id;
+  const pct = c.total ? Math.round(100 * c.done / c.total) : 0;
+  const progress = c.pending ? `<div class="progress"><div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Checking exhibitors"><i style="width:${pct}%"></i></div>
+      <p class="num">${running ? 'Checking' : 'Paused at'} ${c.done} of ${c.total}. ${running ? 'Keep this open, or leave it: the checks carry on in the background.' : 'Tap Keep checking to carry on.'}</p></div>` : '';
+  const key = [s.id, s.name, s.start, s.end, c.total, c.done, c.corporate, c.check, c.consent, running, s.status, s.statusNote, s.urls.length].join('|');
+  if (hero.dataset.key !== key) {
+    hero.dataset.key = key;
+    hero.innerHTML = `${planSvg(c.total ? c : null)}
+      <div class="title-row"><div><h1 class="sat-name">${esc(s.name)}</h1><p class="when num">${esc(group.id === 'undated' ? 'Dates not set' : `${C.fmtDates(s.start, s.end)}, ${group.label.toLowerCase()}`)}</p></div>
+      <button class="icon-btn" type="button" data-act="show-menu" aria-label="Exhibition options">${ICON.more}</button></div>
+      <p class="story">${esc(C.summary(c, s))}</p>${progress}
+      <div class="actions">${showActions(s, c)}</div>`;
+  }
+  const f = $('#showFilters');
+  if (!c.total) { f.innerHTML = ''; $('#showRows').innerHTML = ''; return; }
+  if (!f.dataset.ready) {
+    f.dataset.ready = '1';
+    f.innerHTML = `<div class="chips filters" id="chipRow" role="group" aria-label="Filter exhibitors"></div>
+      <form class="quiet-search" id="searchForm" role="search"><input class="field" id="q" type="search" placeholder="Search this list" autocomplete="off" enterkeyhint="search" aria-label="Search this list" value="${esc(S.q)}"></form>`;
+  }
+  $('#chipRow').innerHTML = C.FILTERS.filter((x) => x.id === 'all' || x.id === S.filter || C.filterCount(c, x.id) > 0)
+    .map((x) => `<button class="chip" type="button" data-filter="${x.id}" aria-pressed="${S.filter === x.id}">${esc(x.label)} <span class="n num">${C.filterCount(c, x.id)}</span></button>`).join('');
+  const list = C.filterRows(rows, { filter: S.filter, q: S.q });
+  const shown = list.slice(0, S.limit);
+  $('#showRows').innerHTML = (shown.length ? shown.map(rowHtml).join('') : `<p class="empty-list">No exhibitors match. Clear the search or choose All.</p>`)
+    + (list.length > shown.length ? `<button class="more-btn" type="button" data-act="more">Show ${Math.min(200, list.length - shown.length)} more of ${list.length - shown.length}</button>` : '');
+}
+
+function rowHtml(r) {
+  const st = C.statusOf(r);
+  const who = [r.contact, r.domain].filter(Boolean).join(', ');
+  return `<div class="ex"><button class="ex-main" type="button" data-row="${esc(r.id)}"><span class="dot ${st}"></span>
+    <span class="ex-t"><span class="ex-name">${esc(r.name)}</span><span class="ex-sub">${esc(C.rowSub(r))}</span>${who ? `<span class="ex-sub dim">${esc(who)}</span>` : ''}</span>${ICON.chev}</button></div>`;
+}
+
+/* ---------- Sheets ---------- */
+const sheet = $('#sheet');
+function openSheet(html) {
+  $('#sheetBody').innerHTML = `<div class="grabber"></div>` + html;
+  if (!sheet.open) sheet.showModal();
+  sheet.scrollTop = 0;
+}
+function closeSheet() { if (sheet.open) sheet.close(); }
+sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
+const head = (title) => `<div class="sheet-head"><h2 id="sheetTitle">${esc(title)}</h2><button class="icon-btn" type="button" data-act="close" aria-label="Close">${ICON.x}</button></div>`;
+
+/* Detail */
+function kv(label, value, sub) {
+  if (!value) return '';
+  return `<div class="kv"><span class="k">${esc(label)}</span><span class="v">${value}</span>${sub ? `<span class="s">${esc(sub)}</span>` : ''}</div>`;
+}
+
+function openRow(id) {
+  const r = rowById(id);
+  if (!r) return;
+  const st = C.statusOf(r), s = showById(r.showId) || {};
+  const done = st !== 'pending';
+  const link = (href, text) => `<a href="${esc(href)}"${/^https?:/.test(href) ? ' target="_blank" rel="noopener"' : ''}>${esc(text)}</a>`;
+  const coUrl = C.companyUrl(r.companyNo);
+  const needsAnswer = done && (r.legal === 'likely' || r.legal === 'possible') && r.legalSrc !== 'Confirmed by you';
+  const contactSrc = r.contact ? (r.contactSrc ? `From ${r.contactSrc}` : '') : '';
+  const emailSub = [C.emailKindLabel(r.emailKind), r.emailSrc ? `from ${r.emailSrc}` : ''].filter(Boolean).join(', ');
+  const SURE = { verified: 'Confirmed', likely: 'Likely the same company', possible: 'Possibly the same company' };
+  const company = r.companyNo ? [
+    kv('Company', esc(r.companyName), [C.companyTypeLabel(r.companyType), r.companyStatus].filter(Boolean).join(', ')),
+    kv('Company number', coUrl ? link(coUrl, r.companyNo) : esc(r.companyNo), r.companyAddr),
+    kv('How sure', esc(SURE[r.legal] || ''), r.legalSrc),
+    kv('Director', esc(r.chDirector), 'From Companies House'),
+  ].join('') : kv('Company', 'No company found', r.legalSrc && r.legalSrc !== 'No company found' ? r.legalSrc : '');
+  openSheet(`${head(r.name)}
+    <span class="tag ${st}">${esc(C.STATUS_LABEL[st])}</span>${done ? `<span class="tag">${esc(C.workspaceShort(r))}</span>` : ''}
+    <p>${esc(C.emailRule(r))}</p>
+    ${needsAnswer ? `<div class="actions" style="margin-top:10px"><button class="btn primary" type="button" data-act="match-yes" data-id="${esc(r.id)}">Yes, same company</button><button class="btn" type="button" data-act="match-no" data-id="${esc(r.id)}">No, a different one</button></div>` : ''}
+    <h3>Contact</h3>
+    ${kv('Email', r.email ? link('mailto:' + r.email, r.email) : '', emailSub)}
+    ${kv('Phone', r.phone ? link('tel:' + r.phone.replace(/\s+/g, ''), r.phone) : '', r.phone && r.phoneSrc ? `From ${r.phoneSrc}` : '')}
+    ${kv('Contact name', esc(r.contact), contactSrc)}
+    ${kv('Website', r.website ? link(r.website, r.website.replace(/^https?:\/\//, '')) : '')}
+    ${!r.email && !r.phone && !r.contact && !r.website ? '<p class="small">Nothing found yet. Edit the details to add what you know.</p>' : ''}
+    <h3>Company</h3>
+    ${company}
+    <div class="actions" style="margin-top:10px"><button class="btn" type="button" data-act="company-no" data-id="${esc(r.id)}">Enter company number</button></div>
+    <h3>Email setup</h3>
+    ${kv('Provider', esc(C.workspaceLabel(r)))}
+    <h3>At the show</h3>
+    ${kv('Exhibition', esc(s.name || ''), s.start ? C.fmtDates(s.start, s.end) : '')}
+    ${kv('Stand', esc(r.stand))}${kv('Category', esc(r.category))}${kv('About', esc(r.blurb))}${kv('Notes', esc(r.note))}
+    <div class="actions"><button class="btn primary" type="button" data-act="edit-row" data-id="${esc(r.id)}">Edit details</button>
+    <button class="btn" type="button" data-act="recheck" data-id="${esc(r.id)}">Check again</button>
+    <button class="btn" type="button" data-act="remove-row" data-id="${esc(r.id)}">Remove</button></div>`);
+}
+
+function openEditRow(id) {
+  const r = rowById(id);
+  if (!r) return;
+  const f = (name, label, val, attrs) => `<label class="lbl" for="er-${name}">${label}</label><input class="field" id="er-${name}" name="${name}" value="${esc(val || '')}" ${attrs || ''} autocomplete="off">`;
+  openSheet(`${head('Edit details')}
+    <form id="editRowForm" data-id="${esc(r.id)}" novalidate>
+      ${f('contact', 'Contact name', r.contact)}
+      ${f('email', 'Email', r.email, 'type="email" inputmode="email"')}
+      ${f('phone', 'Phone', r.phone, 'type="tel" inputmode="tel"')}
+      ${f('website', 'Website', r.website, 'type="url" inputmode="url"')}
+      <label class="lbl" for="er-note">Notes</label><textarea class="field" id="er-note" name="note" rows="3">${esc(r.note || '')}</textarea>
+      <p class="hint">Changing the website or email starts the checks again for this business.</p>
+      <div class="actions"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-act="back-to-row" data-id="${esc(r.id)}">Cancel</button></div>
+    </form>`);
+}
+
+function openCompanyNo(id) {
+  openSheet(`${head('Company number')}
+    <p>Look the company up on Companies House and type its number here. It is checked against the register.</p>
+    <form id="companyForm" data-id="${esc(id)}"><label class="lbl" for="coNo">Company number</label>
+      <input class="field" id="coNo" name="number" placeholder="For example 01234567 or SC123456" autocapitalize="characters" autocomplete="off" maxlength="12">
+      <div class="actions"><button class="btn primary" type="submit">Check and save</button><button class="btn" type="button" data-act="back-to-row" data-id="${esc(id)}">Cancel</button></div></form>`);
+}
+
+/* Show forms */
+function showForm(s, pre) {
+  const sectors = Array.from(new Set(S.shows.map((x) => x.sector)));
+  const v = s || {};
+  const p = pre || {};
+  return `<form id="showForm" data-id="${esc(v.id || '')}" novalidate>
+      <label class="lbl" for="sf-name" style="margin-top:6px">Exhibition name</label>
+      <input class="field" id="sf-name" name="name" value="${esc(v.name || p.name || '')}" maxlength="120" autocomplete="off" placeholder="For example The Whisky Show">
+      <label class="lbl" for="sf-sector">Sector</label>
+      <input class="field" id="sf-sector" name="sector" list="sectorList" value="${esc(v.sector || p.sector || (S.route.v === 'sector' ? S.route.sector : S.set.lastSector) || '')}" maxlength="40" autocomplete="off" placeholder="For example Whisky and spirits">
+      <datalist id="sectorList">${sectors.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>
+      <div class="two"><div><label class="lbl" for="sf-start">Starts</label><input class="field" id="sf-start" name="start" type="date" value="${esc(v.start || '')}"></div>
+      <div><label class="lbl" for="sf-end">Ends</label><input class="field" id="sf-end" name="end" type="date" value="${esc(v.end || '')}"></div></div>
+      <label class="lbl" for="sf-urls">Exhibitor list link</label>
+      <textarea class="field" id="sf-urls" name="urls" rows="2" placeholder="Paste the address of the exhibitor list" autocapitalize="off" spellcheck="false">${esc((v.urls || []).join('\n') || p.url || '')}</textarea>
+      <p class="hint">Add more than one link, each on its own line, if the list runs over several pages. You can also paste the list itself later.</p>
+      <div class="actions"><button class="btn primary" type="submit">${v.id ? 'Save' : 'Add and load'}</button><button class="btn" type="button" data-act="close">Cancel</button></div>
+    </form>`;
+}
+function openAddShow(pre) { openSheet(head('Add exhibition') + showForm(null, pre)); }
+function openEditShow(s) { openSheet(head('Edit exhibition') + showForm(s)); }
+
+function openPaste(s) {
+  openSheet(`${head('Paste the list')}
+    <p>Paste the exhibitor names, one per line. A website after the name helps: <span class="small">Acme Ltd, www.acme.co.uk</span>. A spreadsheet copy with columns works too.</p>
+    <form id="pasteForm" data-id="${esc(s.id)}"><label class="lbl" for="pasteText" style="margin-top:6px">Exhibitors</label>
+      <textarea class="field" id="pasteText" name="text" rows="9" placeholder="Acme Ltd, www.acme.co.uk&#10;Beta Crafts&#10;Gamma Foods, gamma.com" autocapitalize="off" spellcheck="false"></textarea>
+      <div class="actions"><button class="btn primary" type="submit">Add to this exhibition</button><button class="btn" type="button" data-act="close">Cancel</button></div></form>`);
+}
+
+function openShowMenu(s) {
+  const rows = S.rows[s.id] || [], c = C.countRows(rows);
+  const filtered = S.filter !== 'all' || S.q;
+  openSheet(`${head(s.name)}
+    <div class="menu">
+      <button type="button" data-act="edit-show">Edit details<small>Name, dates, sector and links</small></button>
+      <button type="button" data-act="paste">Paste a list<small>Add exhibitors by hand</small></button>
+      ${s.urls.length ? '<button type="button" data-act="load">Load the list again<small>New exhibitors are added, existing ones are kept</small></button>' : ''}
+      ${c.likely ? `<button type="button" data-act="confirm-likely">Confirm ${c.likely} likely ${c.likely === 1 ? 'match' : 'matches'}<small>Same name on Companies House, active. Treats them as confirmed</small></button>` : ''}
+      ${c.total ? '<button type="button" data-act="recheck-all">Check everything again<small>Runs the website, email and company checks again</small></button>' : ''}
+      ${filtered && c.total ? '<button type="button" data-act="csv-shown">Download only what is shown<small>Uses the current filter and search</small></button>' : ''}
+      ${S.status && S.status.sheetUrl ? `<button type="button" data-act="open-sheet">Open the Google Sheet<small>Where all of this is kept</small></button>` : ''}
+      <button type="button" data-act="delete-show">Delete exhibition<small>Removes it and its exhibitors from your sheet</small></button>
+    </div>`);
+}
+
+function openConfirm(title, body, act, label, id) {
+  openSheet(`${head(title)}<p>${esc(body)}</p><div class="actions"><button class="btn primary" type="button" data-act="${act}" data-id="${esc(id || '')}">${esc(label)}</button><button class="btn" type="button" data-act="close">Cancel</button></div>`);
+}
+
+/* Settings */
+function themeGridHtml() {
+  return `<div class="theme-grid">${THEMES.map((t) => `<button class="theme-opt" type="button" data-theme="${t.id}" aria-pressed="${S.set.theme === t.id}">
+      <span class="sw" style="--a:${t.bg};--c:${t.dome};--b:${t.accent}"></span>${t.name}</button>`).join('')}</div>
+    <p class="theme-note">Night red and Amber are gentlest on eyes adjusted to the dark.</p>`;
+}
+
+function statusBox() {
+  const st = S.status;
+  if (!st) return '';
+  return `<div class="status-box" id="statusBox"><p>Connected to your sheet.</p>
+    <p>Companies House key: ${st.ch ? 'set' : '<strong>not set</strong>, so company checks will say consent needed'}</p>
+    <p>Background checks: ${st.trigger ? 'on, every 10 minutes' : '<strong>off</strong>. Run setup again in Apps Script'}</p></div>`;
+}
+
+function openSettings() {
+  const a = S.api || {};
+  openSheet(`${head('Settings')}
+    <h3>Your sheet</h3>
+    <p>${S.api ? 'Everything is kept in a Google Sheet in your own account. This phone only holds a copy.' : 'Add the web app address and token from your Apps Script. The README has the steps.'}</p>
+    <form id="connectForm" novalidate>
+      <label class="lbl" for="apiUrl">Web app address</label>
+      <input class="field" id="apiUrl" name="url" type="url" inputmode="url" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(a.url || '')}" autocapitalize="off" autocomplete="off" spellcheck="false">
+      <label class="lbl" for="apiToken">Access token</label>
+      <input class="field" id="apiToken" name="token" type="password" placeholder="From the Apps Script log" value="${esc(a.token || '')}" autocapitalize="off" autocomplete="off" spellcheck="false">
+      <div class="actions"><button class="btn primary" type="submit">${S.api ? 'Save and test' : 'Connect'}</button>${S.api ? '<button class="btn" type="button" data-act="disconnect">Disconnect this phone</button>' : ''}</div>
+    </form>
+    ${statusBox()}
+    <h3>Colour theme</h3>
+    ${themeGridHtml()}
+    <h3>About</h3>
+    <p class="small">For your own prospecting. Company status comes from Companies House and email setup from public mail records. Sole traders cannot be confirmed from the register, so anything unconfirmed is marked as needing consent. A guide only, not legal advice.</p>`);
+  if (S.api && !S.status) call('status').then((j) => { S.status = j; put('status', j); const b = $('#statusBox'); if (!b && sheet.open && $('#connectForm')) $('#connectForm').insertAdjacentHTML('afterend', statusBox()); }).catch(() => {});
+}
+
+async function connect(url, token) {
+  const u = C.validApiUrl(url);
+  if (!u) { toast('That does not look like a web app address. It ends in /exec.'); return false; }
+  if (!token.trim()) { toast('Add the access token'); return false; }
+  const prev = S.api;
+  S.api = { url: u, token: token.trim() };
+  try {
+    const st = await call('status', null, 30000);
+    S.status = st; put('status', st);
+    put('api', S.api);
+    S.offline = false;
+    await refreshShows();
+    toast('Connected to your sheet');
+    return true;
+  } catch (e) {
+    S.api = prev;
+    toast(e.net ? 'Could not reach that address. Check it and your connection.' : e.message);
+    return false;
+  }
+}
+
+/* ---------- Themes and panels ---------- */
+function setTheme(id) {
+  const t = THEMES.find((x) => x.id === id) || THEMES[0];
+  S.set.theme = t.id; saveSet();
+  if (t.id === 'twilight') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t.id;
+  $('meta[name=theme-color]').setAttribute('content', t.bg);
+  document.querySelectorAll('.theme-opt').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.theme === t.id)));
+}
+
+const POPS = { themes: '#themeBtn' };
+function togglePop(id, open) {
+  const pop = $('#' + id), show = open == null ? pop.hidden : open;
+  if (show) pop.innerHTML = themeGridHtml();
+  pop.hidden = !show;
+  $(POPS[id]).setAttribute('aria-expanded', String(show));
+}
+function closePops() { for (const id in POPS) if (!$('#' + id).hidden) togglePop(id, false); }
+const popOpen = () => Object.keys(POPS).some((id) => !$('#' + id).hidden);
+// A tap outside an open panel only closes it. It never also presses what is underneath.
+document.addEventListener('click', (e) => {
+  if (!popOpen() || e.target.closest('.pop, ' + Object.values(POPS).join(', '))) return;
+  e.preventDefault(); e.stopPropagation(); closePops();
+}, true);
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  for (const id in POPS) if (!$('#' + id).hidden) { togglePop(id, false); $(POPS[id]).focus(); }
+});
+
+/* ---------- Files ---------- */
+function download(name, text) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+const byId = () => Object.fromEntries(S.shows.map((s) => [s.id, s]));
+
+function downloadShow(s, onlyShown) {
+  const rows = S.rows[s.id] || [];
+  if (!rows.length) { toast('Nothing to download yet'); return; }
+  const list = C.filterRows(rows, onlyShown ? { filter: S.filter, q: S.q } : {});
+  download(`exhibitor-leads-${C.slug(s.name)}-${today()}.csv`, C.toCsv(list, byId()));
+  toast(`Saved ${C.plural(list.length, 'exhibitor')} to a CSV file`);
+}
+
+async function downloadSector(sector) {
+  const shows = S.shows.filter((s) => s.sector === sector);
+  let rows;
+  try { rows = (await call('rows', { sector })).rows; setOffline(null); }
+  catch (e) {
+    rows = [];
+    shows.forEach((s) => { rows = rows.concat(S.rows[s.id] || cachedRows(s.id)); });
+    if (!rows.length) { toast(e.message); return; }
+    toast('Could not reach your sheet, so this uses what is saved on this phone');
+  }
+  const merged = C.mergeBySite(C.filterRows(rows, {}), byId());
+  download(`exhibitor-leads-${C.slug(sector)}-sector-${today()}.csv`, C.toCsv(merged, byId()));
+  toast(`Saved ${C.plural(merged.length, 'business', 'businesses')} to a CSV file`);
+}
+
+/* ---------- Actions ---------- */
+async function withBusy(btn, fn) {
+  if (btn) btn.disabled = true;
+  try { return await fn(); } finally { if (btn) btn.disabled = false; }
+}
+
+async function loadList(s, btn) {
+  await withBusy(btn, async () => {
+    toast('Reading the exhibitor list…');
+    try {
+      const r = await call('loadShow', { id: s.id }, 90000);
+      await refreshShows();
+      if (r.status === 'loaded') {
+        toast(`${C.plural(r.added, 'exhibitor')} added${r.skipped ? `, ${r.skipped} already there` : ''}`);
+        await fetchRows(s.id).catch(() => {});
+      } else toast(r.note || 'No exhibitors found');
+      E.userPaused = false;
+      updateShow();
+      ensureChecking();
+    } catch (e) { setOffline(e); toast(e.message); }
+  });
+}
+
+async function submitShow(form) {
+  const f = new FormData(form), id = form.dataset.id;
+  const name = String(f.get('name') || '').trim(), sector = C.matchSector(f.get('sector'), S.shows);
+  if (!name) { toast('Give the exhibition a name'); return; }
+  if (!sector) { toast('Add a sector, such as Whisky and spirits'); return; }
+  const urls = String(f.get('urls') || '').split(/\s+/).filter(Boolean).map((u) => C.validUrl(u));
+  if (urls.some((u) => !u)) { toast('One of the links does not look right'); return; }
+  const btn = form.querySelector('[type=submit]');
+  await withBusy(btn, async () => {
+    try {
+      const j = await call('saveShow', { id: id || undefined, name, sector, start: f.get('start') || '', end: f.get('end') || '', urls: urls.join('\n') });
+      S.set.lastSector = sector; saveSet();
+      closeSheet();
+      await refreshShows();
+      const show = showById(j.show.id) || j.show;
+      if (!id) {
+        go({ v: 'show', showId: show.id, sector: show.sector });
+        if (show.urls.length) { await sleep(50); loadList(show, null); } else toast('Added. Paste the list to get started');
+      } else { toast('Saved'); if (S.route.v === 'show') { const h = $('#showHero'); if (h) h.dataset.key = ''; updateShow(); } else renderMain(); }
+    } catch (e) { setOffline(e); toast(e.message); }
+  });
+}
+
+async function act(name, t) {
+  const d = t.dataset, s = showById(S.route.showId);
+  switch (name) {
+    case 'close': closeSheet(); break;
+    case 'back': history.back(); break;
+    case 'settings': openSettings(); break;
+    case 'retry': {
+      const ok = await refreshShows();
+      if (S.route.v === 'show') { await fetchRows(S.route.showId).then(() => setOffline(null)).catch((e) => setOffline(e)); updateShow(); ensureChecking(); }
+      toast(ok ? 'Back online' : 'Still cannot reach your sheet');
+      break;
+    }
+    case 'install': if (S.installEvt) { S.installEvt.prompt(); S.installEvt = null; renderNotices(); } break;
+    case 'add-show': openAddShow(S.shared ? S.shared : null); S.shared = null; break;
+    case 'sector-csv': withBusy(t, () => downloadSector(S.route.sector)); break;
+    case 'show-menu': if (s) openShowMenu(s); break;
+    case 'edit-show': if (s) openEditShow(s); break;
+    case 'paste': if (s) openPaste(s); break;
+    case 'load': if (s) { closeSheet(); loadList(s, t); } break;
+    case 'csv': if (s) downloadShow(s, false); break;
+    case 'csv-shown': if (s) { closeSheet(); downloadShow(s, true); } break;
+    case 'pause': E.stop = true; E.userPaused = true; updateShow(); toast('Paused. The background checks carry on.'); break;
+    case 'resume': E.userPaused = false; if (s) runChecks(s.id); break;
+    case 'more': S.limit += 200; updateShow(); break;
+    case 'open-sheet': if (S.status && S.status.sheetUrl) window.open(S.status.sheetUrl, '_blank', 'noopener'); break;
+    case 'delete-show': if (s) openConfirm('Delete this exhibition?', `${s.name} and its exhibitors will be removed from your sheet. This cannot be undone.`, 'delete-show-yes', 'Delete exhibition', s.id); break;
+    case 'delete-show-yes': {
+      await withBusy(t, async () => {
+        try { await call('deleteShow', { id: d.id }); delete S.rows[d.id]; drop('rows.' + d.id); closeSheet(); S.shows = S.shows.filter((x) => x.id !== d.id); put('shows', S.shows); toast('Exhibition deleted'); history.back(); }
+        catch (e) { toast(e.message); }
+      });
+      break;
+    }
+    case 'confirm-likely': if (s) {
+      await withBusy(t, async () => {
+        try { const j = await call('confirmLikely', { showId: s.id }); mergeRows(s.id, j.changed); closeSheet(); updateShow(); toast(`${C.plural((j.changed || []).length, 'match', 'matches')} confirmed`); }
+        catch (e) { toast(e.message); }
+      });
+    } break;
+    case 'recheck-all': if (s) {
+      await withBusy(t, async () => {
+        try { const ids = (S.rows[s.id] || []).map((r) => r.id); await call('recheck', { ids }); await fetchRows(s.id); closeSheet(); E.userPaused = false; updateShow(); ensureChecking(); toast('Checking everything again'); }
+        catch (e) { toast(e.message); }
+      });
+    } break;
+    case 'match-yes': case 'match-no': {
+      await withBusy(t, async () => {
+        try { const j = await call('confirmMatch', { id: d.id, yes: name === 'match-yes' }); mergeRows(S.route.showId, [j.row]); updateShow(); openRow(d.id); toast(name === 'match-yes' ? 'Confirmed as the same company' : 'Marked as no company'); }
+        catch (e) { toast(e.message); }
+      });
+      break;
+    }
+    case 'company-no': openCompanyNo(d.id); break;
+    case 'back-to-row': openRow(d.id); break;
+    case 'edit-row': openEditRow(d.id); break;
+    case 'recheck': {
+      await withBusy(t, async () => {
+        try { await call('recheck', { ids: [d.id] }); await fetchRows(S.route.showId); closeSheet(); E.userPaused = false; updateShow(); ensureChecking(); toast('Checking this business again'); }
+        catch (e) { toast(e.message); }
+      });
+      break;
+    }
+    case 'remove-row': openConfirm('Remove this business?', 'It will be removed from this exhibition in your sheet.', 'remove-row-yes', 'Remove', d.id); break;
+    case 'remove-row-yes': {
+      await withBusy(t, async () => {
+        try {
+          await call('deleteRows', { ids: [d.id] });
+          const id = S.route.showId;
+          S.rows[id] = (S.rows[id] || []).filter((r) => r.id !== d.id);
+          saveRows(id); syncCounts(id); closeSheet(); updateShow(); toast('Removed');
+        } catch (e) { toast(e.message); }
+      });
+      break;
+    }
+    case 'disconnect':
+      S.api = null; S.status = null; S.shows = []; S.rows = {};
+      ['api', 'shows', 'showsAt', 'rowIds', 'status'].forEach(drop);
+      try { Object.keys(localStorage).filter((k) => k.indexOf(P + 'rows.') === 0).forEach((k) => localStorage.removeItem(k)); } catch {}
+      closeSheet(); S.route = { v: 'home' }; history.replaceState({ r: S.route }, ''); render(); toast('Disconnected. Nothing was deleted from your sheet.');
+      break;
+  }
+}
+
+/* ---------- Events ---------- */
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('button, a');
+  if (!t) return;
+  const d = t.dataset;
+  if (d.theme) { setTheme(d.theme); return; }
+  if (d.dismiss) { const x = get('dismissed', {}); x[d.dismiss] = 1; put('dismissed', x); renderNotices(); return; }
+  if (d.sector) { go({ v: 'sector', sector: C.matchSector(d.sector, S.shows) }); return; }
+  if (d.show) { const s = showById(d.show); if (s) go({ v: 'show', showId: s.id, sector: s.sector }); return; }
+  if (d.row) { openRow(d.row); return; }
+  if (d.filter) { S.filter = d.filter; S.limit = 200; updateShow(); return; }
+  if (d.act) act(d.act, t);
+});
+
+document.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  if (f.id === 'sectorForm') {
+    const v = C.matchSector($('#sectorIn').value, S.shows);
+    if (!v) { toast('Type a sector first'); return; }
+    S.set.lastSector = v; saveSet();
+    go({ v: 'sector', sector: v });
+  } else if (f.id === 'showForm') submitShow(f);
+  else if (f.id === 'connectForm') {
+    const ok = await withBusy(f.querySelector('[type=submit]'), () => connect(f.url.value, f.token.value));
+    if (ok) { renderMain(); renderHeader(); if (S.shared) { const p = S.shared; S.shared = null; closeSheet(); openAddShow(p); } else openSettings(); }
+  } else if (f.id === 'pasteForm') {
+    const text = f.text.value.trim();
+    if (!text) { toast('Paste at least one name'); return; }
+    await withBusy(f.querySelector('[type=submit]'), async () => {
+      try {
+        const r = await call('pasteList', { showId: f.dataset.id, text });
+        closeSheet(); await refreshShows(); await fetchRows(f.dataset.id).catch(() => {});
+        E.userPaused = false; updateShow(); ensureChecking();
+        toast(`${C.plural(r.added, 'exhibitor')} added${r.skipped ? `, ${r.skipped} already there` : ''}`);
+      } catch (err) { toast(err.message); }
+    });
+  } else if (f.id === 'editRowForm') {
+    const patch = {};
+    ['contact', 'email', 'phone', 'website', 'note'].forEach((k) => { patch[k] = f[k].value.trim(); });
+    await withBusy(f.querySelector('[type=submit]'), async () => {
+      try {
+        const j = await call('editRow', { id: f.dataset.id, patch });
+        mergeRows(S.route.showId, [j.row]);
+        closeSheet(); updateShow(); toast('Saved');
+        E.userPaused = false; ensureChecking();
+      } catch (err) { toast(err.message); }
+    });
+  } else if (f.id === 'companyForm') {
+    await withBusy(f.querySelector('[type=submit]'), async () => {
+      try {
+        const j = await call('confirmMatch', { id: f.dataset.id, number: f.number.value });
+        mergeRows(S.route.showId, [j.row]); updateShow(); openRow(f.dataset.id); toast('Company confirmed');
+      } catch (err) { toast(err.message); }
+    });
+  } else if (f.id === 'searchForm') { /* search happens as you type */ }
+});
+
+let qTimer;
+document.addEventListener('input', (e) => {
+  if (e.target.id !== 'q') return;
+  clearTimeout(qTimer);
+  qTimer = setTimeout(() => { S.q = e.target.value; S.limit = 200; updateShow(); }, 150);
+});
+
+$('#settingsBtn').addEventListener('click', () => openSettings());
+$('#themeBtn').addEventListener('click', () => togglePop('themes'));
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); S.installEvt = e; renderNotices(); });
+window.addEventListener('online', () => { if (S.offline) act('retry', document.body); });
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !S.api) return;
+  if (S.route.v === 'show') {
+    const id = S.route.showId;
+    fetchRows(id).then(() => { updateShow(); ensureChecking(); }).catch((e) => setOffline(e));
+  } else refreshShows();
+});
+
+/* ---------- Start ---------- */
+function start() {
+  setTheme(S.set.theme);
+  saveSet();
+  // A page shared from another app arrives as ?title=&text=&url=
+  const q = new URLSearchParams(location.search);
+  if (q.has('url') || q.has('text') || q.has('title')) {
+    const p = C.parseShared({ title: q.get('title'), text: q.get('text'), url: q.get('url') });
+    history.replaceState(null, '', location.pathname);
+    if (p.url || p.name) S.shared = p;
+  }
+  history.replaceState({ r: S.route }, '');
+  render();
+  if (S.api) refreshShows().then(() => { if (S.shared) { const p = S.shared; S.shared = null; openAddShow(p); } });
+  else if (S.shared) toast('Connect your sheet first, then share the page again');
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+try { start(); } catch (err) { document.getElementById('main').innerHTML = LOAD_FAIL; }
+})();
+</script>
+</body>
+</html>
