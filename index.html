@@ -28,7 +28,9 @@
   --line: rgba(170, 177, 200, 0.1); --line-2: rgba(170, 177, 200, 0.19);
   --ink: #EFEBE1; --ink-2: #AAB1C8; --ink-3: #8E96B4;
   --sun: #F2C063; --sun-soft: rgba(242, 192, 99, 0.16); --on-sun: #1D1505;
-  --scrim: rgba(0, 0, 0, .6); --cell-k: #AAB1C8; --cell-n: #8E96B4; --thin: 300; --status: #0E1426;
+  --st-ok: #6EE5B9; --st-check: #FCC35D; --st-consent: #D75072;
+  --on-ok: #0E1426; --on-check: #0E1426; --on-consent: #0E1426;
+  --scrim: rgba(0, 0, 0, .6); --thin: 300; --status: #0E1426;
   color-scheme: dark;
 }
 :root[data-theme="graphite"] {
@@ -36,7 +38,9 @@
   --line: rgba(167, 172, 180, 0.1); --line-2: rgba(167, 172, 180, 0.19);
   --ink: #ECEEF0; --ink-2: #A7ACB4; --ink-3: #8A9099;
   --sun: #6CAAFF; --sun-soft: rgba(108, 170, 255, 0.16); --on-sun: #06142B;
-  --scrim: rgba(0, 0, 0, .6); --cell-k: #A7ACB4; --cell-n: #8A9099; --thin: 300; --status: #121315;
+  --st-ok: #71E4B6; --st-check: #FCC35D; --st-consent: #D7506E;
+  --on-ok: #121315; --on-check: #121315; --on-consent: #121315;
+  --scrim: rgba(0, 0, 0, .6); --thin: 300; --status: #121315;
   color-scheme: dark;
 }
 :root[data-theme="forest"] {
@@ -44,7 +48,9 @@
   --line: rgba(163, 182, 171, 0.1); --line-2: rgba(163, 182, 171, 0.19);
   --ink: #E8EEE9; --ink-2: #A3B6AB; --ink-3: #81978B;
   --sun: #CDB06A; --sun-soft: rgba(205, 176, 106, 0.16); --on-sun: #1C1604;
-  --scrim: rgba(0, 0, 0, .6); --cell-k: #A3B6AB; --cell-n: #81978B; --thin: 300; --status: #0D1512;
+  --st-ok: #78E4B0; --st-check: #FEC25E; --st-consent: #D7506E;
+  --on-ok: #0D1512; --on-check: #0D1512; --on-consent: #0D1512;
+  --scrim: rgba(0, 0, 0, .6); --thin: 300; --status: #0D1512;
   color-scheme: dark;
 }
 :root[data-theme="aubergine"] {
@@ -52,7 +58,9 @@
   --line: rgba(180, 166, 193, 0.1); --line-2: rgba(180, 166, 193, 0.19);
   --ink: #F0E9F4; --ink-2: #B4A6C1; --ink-3: #9C8FAE;
   --sun: #F29DBF; --sun-soft: rgba(242, 157, 191, 0.16); --on-sun: #2B0A18;
-  --scrim: rgba(0, 0, 0, .6); --cell-k: #B4A6C1; --cell-n: #9C8FAE; --thin: 300; --status: #150F1C;
+  --st-ok: #71E4B6; --st-check: #FCC35D; --st-consent: #D65076;
+  --on-ok: #150F1C; --on-check: #150F1C; --on-consent: #150F1C;
+  --scrim: rgba(0, 0, 0, .6); --thin: 300; --status: #150F1C;
   color-scheme: dark;
 }
 :root[data-theme="porcelain"] {
@@ -60,7 +68,9 @@
   --line: rgba(22, 33, 31, 0.1); --line-2: rgba(22, 33, 31, 0.2);
   --ink: #16211F; --ink-2: #475451; --ink-3: #586663;
   --sun: #0B6B6B; --sun-soft: rgba(11, 107, 107, 0.12); --on-sun: #FFFFFF;
-  --scrim: rgba(18, 22, 30, .42); --cell-k: #586663; --cell-n: #838E8C; --thin: 400; --status: #15181E;
+  --st-ok: #25956F; --st-check: #B27B16; --st-consent: #A31B41;
+  --on-ok: #14100A; --on-check: #14100A; --on-consent: #FFFFFF;
+  --scrim: rgba(18, 22, 30, .42); --thin: 400; --status: #15181E;
   color-scheme: light;
 }
 :root[data-theme="stone"] {
@@ -68,7 +78,9 @@
   --line: rgba(38, 32, 26, 0.1); --line-2: rgba(38, 32, 26, 0.2);
   --ink: #26201A; --ink-2: #584E44; --ink-3: #66594D;
   --sun: #B04526; --sun-soft: rgba(176, 69, 38, 0.12); --on-sun: #FFFFFF;
-  --scrim: rgba(18, 22, 30, .42); --cell-k: #66594D; --cell-n: #90867C; --thin: 400; --status: #15181E;
+  --st-ok: #2A9166; --st-check: #AB7707; --st-consent: #A31B41;
+  --on-ok: #14100A; --on-check: #14100A; --on-consent: #FFFFFF;
+  --scrim: rgba(18, 22, 30, .42); --thin: 400; --status: #15181E;
   color-scheme: light;
 }
 :root[data-theme="sage"] {
@@ -76,7 +88,9 @@
   --line: rgba(27, 36, 28, 0.1); --line-2: rgba(27, 36, 28, 0.2);
   --ink: #1B241C; --ink-2: #495749; --ink-3: #566656;
   --sun: #2D6A3C; --sun-soft: rgba(45, 106, 60, 0.12); --on-sun: #FFFFFF;
-  --scrim: rgba(18, 22, 30, .42); --cell-k: #566656; --cell-n: #7F8B7F; --thin: 400; --status: #15181E;
+  --st-ok: #339466; --st-check: #AC790B; --st-consent: #A31B41;
+  --on-ok: #14100A; --on-check: #14100A; --on-consent: #FFFFFF;
+  --scrim: rgba(18, 22, 30, .42); --thin: 400; --status: #15181E;
   color-scheme: light;
 }
 :root[data-theme="sky"] {
@@ -84,7 +98,9 @@
   --line: rgba(20, 26, 42, 0.1); --line-2: rgba(20, 26, 42, 0.2);
   --ink: #141A2A; --ink-2: #445068; --ink-3: #54617C;
   --sun: #3D4DC0; --sun-soft: rgba(61, 77, 192, 0.12); --on-sun: #FFFFFF;
-  --scrim: rgba(18, 22, 30, .42); --cell-k: #54617C; --cell-n: #7F899E; --thin: 400; --status: #15181E;
+  --st-ok: #25956F; --st-check: #AF7911; --st-consent: #A31B45;
+  --on-ok: #14100A; --on-check: #14100A; --on-consent: #FFFFFF;
+  --scrim: rgba(18, 22, 30, .42); --thin: 400; --status: #15181E;
   color-scheme: light;
 }
 * { box-sizing: border-box; }
@@ -136,9 +152,9 @@ header { display: grid; grid-template-columns: 1fr auto; align-items: start; pad
 .hero { padding: 8px 0 22px; }
 .plan { display: block; width: min(100%, 320px); height: auto; margin: 8px auto 20px; overflow: visible; }
 .plan .hall { fill: var(--raise); stroke: var(--line-2); }
-.plan .c-c { fill: var(--sun); }
-.plan .c-k { fill: var(--cell-k); }
-.plan .c-n { fill: var(--cell-n); }
+.plan .c-c { fill: var(--st-ok); }
+.plan .c-k { fill: var(--st-check); }
+.plan .c-n { fill: var(--st-consent); }
 .plan .c-p { fill: none; stroke: var(--ink-3); stroke-width: 1.2; }
 .plan .c-e { fill: none; stroke: var(--line-2); stroke-width: 1.2; stroke-dasharray: 3 3; }
 .title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -180,7 +196,15 @@ textarea.field { height: auto; min-height: 96px; padding: 10px 12px; resize: ver
 /* Chips */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { min-height: 36px; padding: 0 14px; border-radius: 18px; background: var(--raise-2); font-size: 14px; font-weight: 500; color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
-.chip[aria-pressed="true"] { background: var(--sun); color: var(--on-sun); }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+/* Status pills: same colours as the stand plan. Soft tint and ring when off, solid when selected. */
+.chip.st { --stc: var(--st-ok); --onc: var(--on-ok); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--stc); }
+.chip.st-check { --stc: var(--st-check); --onc: var(--on-check); }
+.chip.st-consent { --stc: var(--st-consent); --onc: var(--on-consent); }
+@supports (background: color-mix(in srgb, red, blue)) {
+  .chip.st { background: color-mix(in srgb, var(--stc) 13%, var(--raise-2)); }
+}
+.chip.st[aria-pressed="true"] { background: var(--stc); color: var(--onc); box-shadow: none; }
 .chip .n { font-size: 12.5px; opacity: .8; }
 .filters { margin: 4px 0 0; }
 .quiet-search { margin: 12px 0 0; }
@@ -191,17 +215,19 @@ textarea.field { height: auto; min-height: 96px; padding: 10px 12px; resize: ver
 .section-note { margin: 2px 0 0; font-size: 13.5px; color: var(--ink-3); }
 .item, .ex { border-bottom: 1px solid var(--line); }
 .item-main, .ex-main { width: 100%; display: grid; align-items: center; text-align: left; min-width: 0; }
-.item-main { grid-template-columns: 1fr 18px; column-gap: 12px; padding: 14px 0; min-height: 56px; }
+.item-main { grid-template-columns: minmax(0, 1fr) 18px; column-gap: 12px; padding: 14px 0; min-height: 56px; }
 .ex-main { grid-template-columns: 12px 1fr 18px; column-gap: 12px; padding: 12px 0; min-height: 60px; }
 .item-main > svg, .ex-main > svg { width: 18px; height: 18px; color: var(--ink-3); }
 .item-name, .ex-name { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-name.long { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
+.item-main > span { min-width: 0; }
 .item-sub, .ex-sub { display: block; font-size: 13.5px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ex-sub.dim { color: var(--ink-3); }
 .ex-t { min-width: 0; }
 .dot { width: 12px; height: 12px; border-radius: 3px; }
-.dot.corporate { background: var(--sun); }
-.dot.check { background: var(--cell-k); }
-.dot.consent { background: var(--cell-n); }
+.dot.corporate { background: var(--st-ok); }
+.dot.check { background: var(--st-check); }
+.dot.consent { background: var(--st-consent); }
 .dot.pending { border: 1.5px solid var(--ink-3); }
 .more-btn { display: block; width: 100%; padding: 14px 0; text-align: left; font-size: 14px; font-weight: 500; color: var(--ink-2); border-bottom: 1px solid var(--line); }
 .empty-list { margin: 18px 0 0; color: var(--ink-2); }
@@ -260,7 +286,11 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 #searchBtn[aria-expanded="true"] .i-close { display: block; }
 #searchBtn[aria-expanded="true"] { color: var(--sun); }
 .leads { list-style: none; margin: 14px 0 0; padding: 0; max-width: 30em; font-size: 17px; font-weight: var(--thin); line-height: 1.4; color: var(--ink); }
-.leads li { padding: 6px 0; }
+.leads li { padding: 6px 0; display: grid; grid-template-columns: 12px minmax(0, 1fr); column-gap: 12px; align-items: start; }
+.leads .lk { width: 12px; height: 12px; border-radius: 3px; margin-top: 6px; }
+.leads .lk.corporate { background: var(--st-ok); }
+.leads .lk.check { background: var(--st-check); }
+.leads .lk.consent { background: var(--st-consent); }
 .leads strong { font-weight: 600; }
 
 /* Colour theme and usage, both in Settings */
@@ -331,7 +361,7 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="core.js?v=4"></script>
+<script src="core.js?v=5"></script>
 <script>
 (() => {
 'use strict';
@@ -631,17 +661,17 @@ function homeHtml() {
 
 /** "Your leads" with one fact to a line. Falls back to a sentence while there is nothing to count. */
 function leadsHtml(head, c, fallback) {
-  const li = (l) => `<li><strong class="num">${esc(l.n)}</strong> ${esc(l.text)}</li>`;
+  const li = (l) => `<li><i class="lk${l.k ? ' ' + l.k : ''}" aria-hidden="true"></i><span>${l.n ? `<strong class="num">${esc(l.n)}</strong> ` : ''}${esc(l.text)}</span></li>`;
   const lines = C.leadLines(c);
   if (!lines && !head) return `<p class="story">${esc(fallback)}</p>`;
-  return `<ul class="leads">${head ? li(head) : ''}${lines ? lines.map(li).join('') : `<li>${esc(fallback)}</li>`}</ul>`;
+  return `<ul class="leads">${head ? li(head) : ''}${lines ? lines.map(li).join('') : li({ n: '', text: fallback })}</ul>`;
 }
 
 function sectorRow(s) {
   const bits = [C.plural(s.shows, 'exhibition')];
   if (s.total) bits.push(C.plural(s.total, 'exhibitor'));
   if (s.corporate) bits.push(`${s.corporate} can email`);
-  return `<div class="item"><button class="item-main" type="button" data-sector="${esc(s.name)}"><span><span class="item-name">${esc(s.name)}</span><span class="item-sub num">${esc(bits.join(', '))}</span></span>${ICON.chev}</button></div>`;
+  return `<div class="item"><button class="item-main" type="button" data-sector="${esc(s.name)}"><span><span class="item-name long">${esc(s.name)}</span><span class="item-sub num">${esc(bits.join(', '))}</span></span>${ICON.chev}</button></div>`;
 }
 
 /* ---------- Sector ---------- */
@@ -672,7 +702,7 @@ function showRow(s) {
   if (!c.total) sub = s.status === 'loaded' ? 'No exhibitors found' : s.status === 'blocked' || s.status === 'empty' || s.status === 'error' ? 'Needs a pasted list' : 'Not loaded yet';
   else if (c.pending) sub = `Checking ${c.done} of ${c.total}`;
   else sub = `${C.plural(c.total, 'exhibitor')}, ${c.corporate} can email`;
-  return `<div class="item"><button class="item-main" type="button" data-show="${esc(s.id)}"><span><span class="item-name">${esc(s.name)}</span><span class="item-sub num">${esc(C.fmtDates(s.start, s.end))}</span><span class="item-sub num">${esc(sub)}</span></span>${ICON.chev}</button></div>`;
+  return `<div class="item"><button class="item-main" type="button" data-show="${esc(s.id)}"><span><span class="item-name long">${esc(s.name)}</span><span class="item-sub num">${esc(C.fmtDates(s.start, s.end))}</span><span class="item-sub num">${esc(sub)}</span></span>${ICON.chev}</button></div>`;
 }
 
 /* ---------- Show ---------- */
@@ -693,7 +723,6 @@ function showActions(s, c) {
   }
   let out = '';
   if (c.pending) out += running ? '<button class="btn" type="button" data-act="pause">Pause checking</button>' : '<button class="btn primary" type="button" data-act="resume">Keep checking</button>';
-  out += `<button class="btn${c.pending ? '' : ' primary'}" type="button" data-act="csv">${ICON.down}Download CSV</button>`;
   return out;
 }
 
@@ -708,14 +737,15 @@ function updateShow() {
   const pct = c.total ? Math.round(100 * c.done / c.total) : 0;
   const progress = c.pending ? `<div class="progress"><div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Checking exhibitors"><i style="width:${pct}%"></i></div>
       <p class="num">${running ? 'Checking' : 'Paused at'} ${c.done} of ${c.total}. ${running ? 'Keep this open, or leave it: the checks carry on in the background.' : 'Tap Keep checking to carry on.'}</p></div>` : '';
+  const actions = showActions(s, c);
   const key = [s.id, s.name, s.start, s.end, c.total, c.done, c.corporate, c.check, c.consent, c.google, running, s.status, s.statusNote, s.urls.length].join('|');
   if (hero.dataset.key !== key) {
     hero.dataset.key = key;
     hero.innerHTML = `${planSvg(c.total ? c : null)}
       <div class="title-row"><div><h1 class="sat-name">${esc(s.name)}</h1><p class="when num">${esc(group.id === 'undated' ? 'Dates not set' : `${C.fmtDates(s.start, s.end)}, ${group.label.toLowerCase()}`)}</p></div>
-      <button class="icon-btn" type="button" data-act="show-menu" aria-label="Exhibition options">${ICON.more}</button></div>
+      <div class="row-icons">${c.total ? `<button class="ico-btn" type="button" data-act="csv" aria-label="Download CSV" title="Download CSV">${ICON.down}</button>` : ''}<button class="ico-btn" type="button" data-act="show-menu" aria-label="Exhibition options" title="Exhibition options">${ICON.more}</button></div></div>
       ${leadsHtml(null, c, C.summary(c, s))}${progress}
-      <div class="actions">${showActions(s, c)}</div>`;
+      ${actions ? `<div class="actions">${actions}</div>` : ''}`;
   }
   const f = $('#showFilters');
   if (!c.total) { f.innerHTML = ''; $('#showRows').innerHTML = ''; return; }
@@ -725,7 +755,7 @@ function updateShow() {
       <form class="quiet-search" id="searchForm" role="search"><input class="field" id="q" type="search" placeholder="Search this list" autocomplete="off" enterkeyhint="search" aria-label="Search this list" value="${esc(S.q)}"></form>`;
   }
   $('#chipRow').innerHTML = C.FILTERS.filter((x) => x.id === 'all' || x.id === S.filter || C.filterCount(c, x.id) > 0)
-    .map((x) => `<button class="chip" type="button" data-filter="${x.id}" aria-pressed="${S.filter === x.id}">${esc(x.label)} <span class="n num">${C.filterCount(c, x.id)}</span></button>`).join('');
+    .map((x) => `<button class="chip${x.id === 'corporate' ? ' st st-ok' : x.id === 'check' ? ' st st-check' : x.id === 'consent' ? ' st st-consent' : ''}" type="button" data-filter="${x.id}" aria-pressed="${S.filter === x.id}">${esc(x.label)} <span class="n num">${C.filterCount(c, x.id)}</span></button>`).join('');
   const list = C.filterRows(rows, { filter: S.filter, q: S.q });
   const shown = list.slice(0, S.limit);
   $('#showRows').innerHTML = (shown.length ? shown.map(rowHtml).join('') : `<p class="empty-list">No exhibitors match. Clear the search or choose All.</p>`)

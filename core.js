@@ -176,8 +176,8 @@
   const FILTERS = [
     { id: 'all', label: 'All' },
     { id: 'corporate', label: 'Can email' },
-    { id: 'consent', label: 'Consent needed' },
     { id: 'check', label: 'To check' },
+    { id: 'consent', label: 'Consent needed' },
     { id: 'google', label: 'Google Workspace' },
   ];
 
@@ -428,9 +428,10 @@
     if (!c || !c.total) return null;
     const out = [];
     out.push(c.pending ? { n: `${commas(c.done)} of ${commas(c.total)}`, text: 'exhibitors checked so far' } : { n: commas(c.total), text: c.total === 1 ? 'exhibitor, checked' : 'exhibitors, all checked' });
-    out.push({ n: commas(c.corporate || 0), text: 'can be emailed without asking first' });
-    if (c.consent) out.push({ n: commas(c.consent), text: c.consent === 1 ? 'needs consent' : 'need consent' });
-    if (c.check) out.push({ n: commas(c.check), text: c.check === 1 ? 'needs a quick check' : 'need a quick check' });
+    // `k` ties a line to its colour in the stand plan; the order matches the plan (can email, check, consent)
+    out.push({ n: commas(c.corporate || 0), text: 'can be emailed without asking first', k: 'corporate' });
+    if (c.check) out.push({ n: commas(c.check), text: c.check === 1 ? 'needs a quick check' : 'need a quick check', k: 'check' });
+    if (c.consent) out.push({ n: commas(c.consent), text: c.consent === 1 ? 'needs consent' : 'need consent', k: 'consent' });
     if (c.done) out.push({ n: commas(c.google || 0), text: c.google === 1 ? 'appears to use Google Workspace' : 'appear to use Google Workspace' });
     return out;
   }
