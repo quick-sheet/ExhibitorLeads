@@ -221,18 +221,56 @@
 
   /* ---------- Sectors ---------- */
 
-  const SECTOR_PRESETS = ['Baby and toddler', 'Whisky and spirits', 'Arts and crafts', 'Food and drink', 'Weddings', 'Gardening', 'Pets', 'Home and interiors', 'Health and wellbeing', 'Toys and games', 'Fashion and beauty', 'Motoring'];
+  const SECTOR_PRESETS = [
+    'Baby and toddler', 'Whisky and spirits', 'Arts and crafts', 'Food and drink', 'Weddings', 'Gardening and horticulture', 'Pets and animals', 'Health and wellbeing',
+    'Home and interiors', 'Fashion and apparel', 'Jewellery, watches and accessories', 'Beauty and cosmetics', 'Gifts and lifestyle', 'Furniture and furnishings',
+    'Sports and fitness', 'Outdoor and camping', 'Travel and tourism', 'Automotive and motorsport', 'Antiques, vintage and collectables', 'Agriculture and farming',
+    'Technology and electronics', 'Gaming and esports', 'Toys and games', 'Building and construction', 'Hospitality and catering', 'Renewable energy and sustainability',
+    'Boating and marine', 'Publishing and books', 'Education and careers', 'Photography and film', 'Coffee and tea',
+  ];
 
   function cleanSector(s) {
     const t = String(s || '').replace(/\s+/g, ' ').trim().slice(0, 40);
     return t ? t.charAt(0).toUpperCase() + t.slice(1) : '';
   }
 
-  /** Reuse the spelling of an existing sector when the new one differs only by case. */
+  /** Reuse the spelling of an existing sector, or of a suggested one, when the new one differs only by case. */
   function matchSector(name, shows) {
     const n = cleanSector(name);
-    const hit = (shows || []).find((s) => String(s.sector).toLowerCase() === n.toLowerCase());
-    return hit ? hit.sector : n;
+    const low = n.toLowerCase();
+    const hit = (shows || []).find((s) => String(s.sector).toLowerCase() === low);
+    if (hit) return hit.sector;
+    return SECTOR_PRESETS.find((p) => p.toLowerCase() === low) || n;
+  }
+
+  /** The sectors to choose from: the suggested ones in order, then any of your own, each with the exhibitions already added. Typing narrows the list. */
+  function sectorOptions(shows, text) {
+    const count = {}, own = {};
+    (shows || []).forEach((s) => {
+      const k = String(s.sector || 'General').toLowerCase();
+      count[k] = (count[k] || 0) + 1;
+      own[k] = own[k] || s.sector || 'General';
+    });
+    const names = SECTOR_PRESETS.slice();
+    Object.keys(own).sort().forEach((k) => { if (!SECTOR_PRESETS.some((p) => p.toLowerCase() === k)) names.push(own[k]); });
+    const q = String(text || '').trim().toLowerCase();
+    return names.filter((n) => !q || n.toLowerCase().indexOf(q) >= 0).map((n) => ({ name: n, shows: count[n.toLowerCase()] || 0 }));
+  }
+
+  /**
+   * What pressing go means for typed text: the sector it names exactly, the one sector it narrows to,
+   * or, when it matches nothing, a sector of your own. Several matches mean "choose one", so nothing is picked.
+   */
+  function resolveSector(text, shows) {
+    const t = cleanSector(text);
+    if (!t) return { sector: '', matches: [] };
+    const all = sectorOptions(shows).map((o) => o.name);
+    const exact = all.find((n) => n.toLowerCase() === t.toLowerCase());
+    if (exact) return { sector: exact, matches: [exact] };
+    const matches = sectorOptions(shows, t).map((o) => o.name);
+    if (matches.length === 1) return { sector: matches[0], matches };
+    if (matches.length) return { sector: '', matches };
+    return { sector: t, matches: [] };
   }
 
   function sectorsFrom(shows) {
@@ -382,6 +420,21 @@
     });
   }
 
+  /**
+   * "Your leads" as one short line per fact, so it can be scanned. Each line is { n, text }.
+   * Returns null while there are no exhibitors to count.
+   */
+  function leadLines(c) {
+    if (!c || !c.total) return null;
+    const out = [];
+    out.push(c.pending ? { n: `${commas(c.done)} of ${commas(c.total)}`, text: 'exhibitors checked so far' } : { n: commas(c.total), text: c.total === 1 ? 'exhibitor, checked' : 'exhibitors, all checked' });
+    out.push({ n: commas(c.corporate || 0), text: 'can be emailed without asking first' });
+    if (c.consent) out.push({ n: commas(c.consent), text: c.consent === 1 ? 'needs consent' : 'need consent' });
+    if (c.check) out.push({ n: commas(c.check), text: c.check === 1 ? 'needs a quick check' : 'need a quick check' });
+    if (c.done) out.push({ n: commas(c.google || 0), text: c.google === 1 ? 'appears to use Google Workspace' : 'appear to use Google Workspace' });
+    return out;
+  }
+
   /* ---------- Daily usage (the Today line in Settings, and the warning) ---------- */
 
   const WARN_AT = 70;
@@ -419,6 +472,6 @@
     FILTERS, filterRows, filterCount, summary,
     SECTOR_PRESETS, cleanSector, matchSector, sectorsFrom, searchLinks,
     validUrl, parseShared, validApiUrl, slug, planGrid, planLabel,
-    CSV_COLUMNS, csvCell, toCsv, mergeBySite, usage,
+    CSV_COLUMNS, csvCell, toCsv, mergeBySite, usage, sectorOptions, resolveSector, leadLines,
   };
 });

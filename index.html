@@ -210,6 +210,28 @@ dialog.sheet::backdrop { background: rgba(4, 6, 14, .62); }
 .status-box { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: var(--bg); font-size: 14px; color: var(--ink-2); }
 .status-box p { margin: 2px 0; font-size: 14px; }
 
+/* Find shows */
+.find { margin: 4px 0 6px; padding: 14px; border-radius: 18px; background: var(--raise); animation: drop .18s ease-out; }
+@keyframes drop { from { opacity: 0; transform: translateY(-6px); } }
+.combo { position: relative; flex: 1; min-width: 0; }
+.combo .field { padding-right: 46px; }
+.combo-btn { position: absolute; right: 0; top: 0; width: 46px; height: 44px; display: grid; place-items: center; color: var(--ink-2); border-radius: 12px; }
+.combo-btn svg { width: 20px; height: 20px; transition: transform .18s; }
+.combo-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+.find-list { margin-top: 10px; max-height: min(52vh, 400px); overflow-y: auto; overscroll-behavior: contain; border-radius: 12px; background: var(--bg); }
+.opt { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 46px; padding: 0 14px; text-align: left; font-size: 15.5px; color: var(--ink); border-bottom: 1px solid var(--line); }
+.opt:last-child { border-bottom: 0; }
+.opt:active { background: var(--raise-2); }
+.opt .n { flex: none; min-width: 1.5ch; text-align: right; font-size: 14px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.opt.has .n { color: var(--sun); font-weight: 600; }
+.opt-note { margin: 0; padding: 14px; font-size: 14px; color: var(--ink-3); }
+#searchBtn .i-close, #searchBtn[aria-expanded="true"] .i-open { display: none; }
+#searchBtn[aria-expanded="true"] .i-close { display: block; }
+#searchBtn[aria-expanded="true"] { color: var(--sun); }
+.leads { list-style: none; margin: 14px 0 0; padding: 0; max-width: 30em; font-size: 17px; font-weight: 300; line-height: 1.4; color: var(--ink); }
+.leads li { padding: 6px 0; }
+.leads strong { font-weight: 600; }
+
 /* Colour theme and usage, both in Settings */
 .use { margin-top: 12px; }
 .use-row { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; font-size: 14px; color: var(--ink-2); }
@@ -245,11 +267,30 @@ dialog.sheet::backdrop { background: rgba(4, 6, 14, .62); }
       </div>
     </div>
     <div class="tools">
+      <button class="icon-btn" id="searchBtn" type="button" aria-expanded="false" aria-controls="findPanel" aria-label="Find shows" hidden>
+        <svg class="i-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg>
+        <svg class="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
       <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
       </button>
     </div>
   </header>
+  <div class="find" id="findPanel" hidden>
+    <form id="findForm" role="search" novalidate>
+      <label class="lbl" for="findIn" style="margin-top:0">Find shows for a sector</label>
+      <div class="field-row" style="margin-top:0">
+        <div class="combo">
+          <input class="field" id="findIn" placeholder="Type a sector" autocomplete="off" autocapitalize="sentences" enterkeyhint="go" maxlength="40" role="combobox" aria-expanded="false" aria-controls="findList">
+          <button class="combo-btn" id="findArrow" type="button" aria-expanded="false" aria-controls="findList" aria-label="Show all sectors">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+        </div>
+        <button class="btn primary" type="submit">Find shows</button>
+      </div>
+    </form>
+    <div class="find-list" id="findList" role="listbox" aria-label="Sectors" hidden></div>
+  </div>
   <div id="notices"></div>
   <main id="main" aria-live="polite"></main>
   <p class="foot" id="foot">A guide only, not legal advice. Emailing a limited company still needs your name, a relevant offer and a way to opt out. Company details come from Companies House. Pages are read politely and only where the site allows it.</p>
@@ -258,7 +299,7 @@ dialog.sheet::backdrop { background: rgba(4, 6, 14, .62); }
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="core.js?v=2"></script>
+<script src="core.js?v=3"></script>
 <script>
 (() => {
 'use strict';
@@ -462,7 +503,7 @@ function go(route, replace) {
 window.addEventListener('popstate', (e) => {
   S.route = (e.state && e.state.r) || { v: 'home' };
   S.filter = 'all'; S.q = ''; S.limit = 200;
-  closeSheet();
+  closeSheet(); closeFind();
   enter();
 });
 async function enter() {
@@ -489,6 +530,8 @@ function render() {
 function renderHeader() {
   const r = S.route;
   $('#back').hidden = r.v === 'home';
+  $('#searchBtn').hidden = !S.api;
+  if (!S.api) closeFind();
   let where = '';
   if (r.v === 'home') where = S.api ? (S.shows.length ? C.plural(S.shows.length, 'exhibition') : 'Ready') : 'Not connected';
   else if (r.v === 'sector') where = 'Sector';
@@ -512,10 +555,7 @@ function renderNotices() {
 
 function renderMain() {
   const r = S.route;
-  const typed = $('#sectorIn'), keep = typed ? { v: typed.value, focus: document.activeElement === typed } : null;
   $('#main').innerHTML = r.v === 'sector' ? sectorHtml(r.sector) : r.v === 'show' ? showShellHtml() : homeHtml();
-  const again = $('#sectorIn');
-  if (keep && again) { again.value = keep.v; if (keep.focus) again.focus(); }
   renderHeader();
   if (r.v === 'show') updateShow();
 }
@@ -543,18 +583,21 @@ function homeHtml() {
   }
   const t = totals(), sectors = C.sectorsFrom(S.shows);
   const has = S.shows.length > 0;
-  const lead = has
-    ? `${C.plural(S.shows.length, 'exhibition')} in ${C.plural(sectors.length, 'sector')}. ${t.total ? C.summary(t, {}) : 'No exhibitors loaded yet.'}`
-    : 'Type a sector, such as baby, whisky or crafts. You get searches to find the shows, then Exhibitor Leads reads each exhibitor list for you.';
-  const presets = C.SECTOR_PRESETS.filter((p) => !sectors.some((s) => s.name.toLowerCase() === p.toLowerCase()));
-  return `<section class="hero">${planSvg(t.total ? t : null)}
+  const head = { n: String(S.shows.length), text: `${S.shows.length === 1 ? 'exhibition' : 'exhibitions'} in ${C.plural(sectors.length, 'sector')}` };
+  return `<section class="hero" id="homeHero">${planSvg(t.total ? t : null)}
       <h1 class="empty-title">${has ? 'Your leads' : 'Who are you selling to?'}</h1>
-      <p class="${has ? 'story' : 'empty-body'}">${esc(lead)}</p>
-      <form class="search-form" id="sectorForm"><label class="lbl" for="sectorIn" style="margin-top:0">Sector</label>
-        <div class="field-row"><input class="field" id="sectorIn" placeholder="For example whisky" autocomplete="off" enterkeyhint="go" maxlength="40"><button class="btn primary" type="submit">Find shows</button></div></form>
+      ${has ? leadsHtml(head, t, 'No exhibitors loaded yet.') : `<p class="empty-body">Tap the search icon, or the button below, and choose a sector such as baby, whisky or crafts. You get searches to find the shows, then Exhibitor Leads reads each exhibitor list for you.</p>
+      <div class="actions"><button class="btn primary" type="button" data-act="open-search">Find shows</button></div>`}
     </section>
-    <div class="chips" role="group" aria-label="Suggested sectors">${presets.slice(0, 8).map((p) => `<button class="chip" type="button" data-sector="${esc(p)}">${esc(p)}</button>`).join('')}</div>
     ${sectors.length ? `<h2 class="section-title">Your sectors</h2>${sectors.map(sectorRow).join('')}` : ''}`;
+}
+
+/** "Your leads" with one fact to a line. Falls back to a sentence while there is nothing to count. */
+function leadsHtml(head, c, fallback) {
+  const li = (l) => `<li><strong class="num">${esc(l.n)}</strong> ${esc(l.text)}</li>`;
+  const lines = C.leadLines(c);
+  if (!lines && !head) return `<p class="story">${esc(fallback)}</p>`;
+  return `<ul class="leads">${head ? li(head) : ''}${lines ? lines.map(li).join('') : `<li>${esc(fallback)}</li>`}</ul>`;
 }
 
 function sectorRow(s) {
@@ -571,12 +614,12 @@ function sectorHtml(sector) {
   shows.forEach((s) => { const c = s.counts || {}; Object.keys(t).forEach((k) => { t[k] += c[k] || 0; }); });
   const links = C.searchLinks(sector);
   const groups = C.groupShows(shows, today());
-  const lead = shows.length ? `${C.plural(shows.length, 'exhibition')}. ${t.total ? C.summary(t, {}) : 'No exhibitors loaded yet.'}` : 'No exhibitions yet. Run one of the searches below, open a show’s exhibitor list, then add it here.';
   return `<section class="hero">${planSvg(t.total ? t : null)}
       <h1 class="sat-name">${esc(sector)}</h1>
-      <p class="${shows.length ? 'story' : 'empty-body'}">${esc(lead)}</p>
+      ${shows.length ? leadsHtml({ n: String(shows.length), text: shows.length === 1 ? 'exhibition' : 'exhibitions' }, t, 'No exhibitors loaded yet.') : '<p class="empty-body">No exhibitions yet. Run one of the searches below, open a show’s exhibitor list, then add it here.</p>'}
       <div class="actions"><button class="btn primary" type="button" data-act="add-show">Add exhibition</button>
-      ${t.total ? `<button class="btn" type="button" data-act="sector-csv">${ICON.down}Download CSV</button>` : ''}</div>
+      ${t.total ? `<button class="btn" type="button" data-act="sector-csv">${ICON.down}Download CSV</button>` : ''}
+      ${shows.length ? '<button class="btn" type="button" data-act="rename-sector">Rename sector</button>' : ''}</div>
     </section>
     <h2 class="section-title" style="margin-top:8px">Find exhibitions</h2>
     <p class="section-note">These open a Google search in a new tab. Find a show’s exhibitor list, then share it to Exhibitor Leads or copy its address.</p>
@@ -626,13 +669,13 @@ function updateShow() {
   const pct = c.total ? Math.round(100 * c.done / c.total) : 0;
   const progress = c.pending ? `<div class="progress"><div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Checking exhibitors"><i style="width:${pct}%"></i></div>
       <p class="num">${running ? 'Checking' : 'Paused at'} ${c.done} of ${c.total}. ${running ? 'Keep this open, or leave it: the checks carry on in the background.' : 'Tap Keep checking to carry on.'}</p></div>` : '';
-  const key = [s.id, s.name, s.start, s.end, c.total, c.done, c.corporate, c.check, c.consent, running, s.status, s.statusNote, s.urls.length].join('|');
+  const key = [s.id, s.name, s.start, s.end, c.total, c.done, c.corporate, c.check, c.consent, c.google, running, s.status, s.statusNote, s.urls.length].join('|');
   if (hero.dataset.key !== key) {
     hero.dataset.key = key;
     hero.innerHTML = `${planSvg(c.total ? c : null)}
       <div class="title-row"><div><h1 class="sat-name">${esc(s.name)}</h1><p class="when num">${esc(group.id === 'undated' ? 'Dates not set' : `${C.fmtDates(s.start, s.end)}, ${group.label.toLowerCase()}`)}</p></div>
       <button class="icon-btn" type="button" data-act="show-menu" aria-label="Exhibition options">${ICON.more}</button></div>
-      <p class="story">${esc(C.summary(c, s))}</p>${progress}
+      ${leadsHtml(null, c, C.summary(c, s))}${progress}
       <div class="actions">${showActions(s, c)}</div>`;
   }
   const f = $('#showFilters');
@@ -740,7 +783,7 @@ function openCompanyNo(id) {
 
 /* Show forms */
 function showForm(s, pre) {
-  const sectors = Array.from(new Set(S.shows.map((x) => x.sector)));
+  const sectors = C.sectorOptions(S.shows).map((o) => o.name);
   const v = s || {};
   const p = pre || {};
   return `<form id="showForm" data-id="${esc(v.id || '')}" novalidate>
@@ -872,6 +915,52 @@ function setTheme(id) {
 }
 
 
+/* ---------- Find shows ---------- */
+const findOpen = () => !$('#findPanel').hidden;
+let findPinned = false;   // the list was opened with the arrow, so it stays open while the box is empty
+
+function findListHtml(text) {
+  const opts = C.sectorOptions(S.shows, text);
+  if (!opts.length) return `<p class="opt-note">No sector matches. Press Find shows to use “${esc(C.cleanSector(text))}” as a sector of your own.</p>`;
+  return opts.map((o) => `<button class="opt${o.shows ? ' has' : ''}" type="button" role="option" data-sector="${esc(o.name)}"><span>${esc(o.name)}</span><span class="n">${o.shows || ''}</span></button>`).join('');
+}
+function setFindList(show) {
+  const list = $('#findList');
+  if (show) list.innerHTML = findListHtml($('#findIn').value);
+  else list.innerHTML = '';
+  list.hidden = !show;
+  $('#findArrow').setAttribute('aria-expanded', String(show));
+  $('#findIn').setAttribute('aria-expanded', String(show));
+}
+function openFind() {
+  if (!S.api) return;
+  $('#findPanel').hidden = false;
+  $('#searchBtn').setAttribute('aria-expanded', 'true');
+  window.scrollTo(0, 0);
+  $('#findIn').focus();
+}
+function closeFind() {
+  if (!findOpen()) return;
+  $('#findPanel').hidden = true;
+  $('#searchBtn').setAttribute('aria-expanded', 'false');
+  $('#findIn').value = ''; findPinned = false;
+  setFindList(false);
+}
+$('#searchBtn').addEventListener('click', () => { if (findOpen()) closeFind(); else openFind(); });
+$('#findArrow').addEventListener('click', () => {
+  const show = $('#findList').hidden;
+  findPinned = show;
+  setFindList(show);
+  if (show) $('#findIn').blur();   // put the keyboard away so the whole list can be seen
+});
+$('#findIn').addEventListener('input', () => {
+  const typed = $('#findIn').value.trim() !== '';
+  if (typed || findPinned) setFindList(true); else setFindList(false);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && findOpen() && !sheet.open) { closeFind(); $('#searchBtn').focus(); }
+});
+
 /* ---------- Files ---------- */
 function download(name, text) {
   const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
@@ -951,6 +1040,37 @@ async function submitShow(form) {
   });
 }
 
+function openRenameSector(sector) {
+  const n = S.shows.filter((x) => x.sector === sector).length;
+  openSheet(`${head('Rename sector')}<form id="renameForm" data-sector="${esc(sector)}" novalidate>
+      <label class="lbl" for="rn-name" style="margin-top:6px">Sector name</label>
+      <input class="field" id="rn-name" name="name" list="renameList" value="${esc(sector)}" maxlength="40" autocomplete="off">
+      <datalist id="renameList">${C.sectorOptions(S.shows).map((o) => `<option value="${esc(o.name)}">`).join('')}</datalist>
+      <p class="hint">This changes ${C.plural(n, 'exhibition')}. Choose a name that already exists to join the two sectors together.</p>
+      <div class="actions"><button class="btn primary" type="submit">Rename</button><button class="btn" type="button" data-act="close">Cancel</button></div>
+    </form>`);
+}
+
+async function submitRename(form) {
+  const from = form.dataset.sector;
+  const to = C.matchSector(new FormData(form).get('name'), S.shows.filter((x) => x.sector !== from));
+  if (!to) { toast('Add a sector name'); return; }
+  const mine = S.shows.filter((x) => x.sector === from);
+  if (to === from || !mine.length) { closeSheet(); return; }
+  await withBusy(form.querySelector('[type=submit]'), async () => {
+    try {
+      for (const x of mine) await call('saveShow', { id: x.id, name: x.name, sector: to, start: x.start || '', end: x.end || '', urls: (x.urls || []).join('\n') });
+      closeSheet();
+      await refreshShows();
+      S.set.lastSector = to; saveSet();
+      S.route = { v: 'sector', sector: to };
+      history.replaceState({ r: S.route }, '');
+      renderMain();
+      toast(`Renamed to ${to}`);
+    } catch (e) { await refreshShows(); renderMain(); setOffline(e); toast(e.message); }
+  });
+}
+
 async function act(name, t) {
   const d = t.dataset, s = showById(S.route.showId);
   switch (name) {
@@ -966,6 +1086,8 @@ async function act(name, t) {
     }
     case 'install': if (S.installEvt) { S.installEvt.prompt(); S.installEvt = null; renderNotices(); } break;
     case 'add-show': openAddShow(S.shared ? S.shared : null); S.shared = null; break;
+    case 'open-search': openFind(); break;
+    case 'rename-sector': if (S.route.v === 'sector') openRenameSector(S.route.sector); break;
     case 'sector-csv': withBusy(t, () => downloadSector(S.route.sector)); break;
     case 'show-menu': if (s) openShowMenu(s); break;
     case 'edit-show': if (s) openEditShow(s); break;
@@ -1042,7 +1164,7 @@ document.addEventListener('click', (e) => {
   const d = t.dataset;
   if (d.theme) { setTheme(d.theme); return; }
   if (d.dismiss) { const x = get('dismissed', {}); x[d.dismiss] = 1; put('dismissed', x); renderNotices(); return; }
-  if (d.sector) { go({ v: 'sector', sector: C.matchSector(d.sector, S.shows) }); return; }
+  if (d.sector) { closeFind(); go({ v: 'sector', sector: C.matchSector(d.sector, S.shows) }); return; }
   if (d.show) { const s = showById(d.show); if (s) go({ v: 'show', showId: s.id, sector: s.sector }); return; }
   if (d.row) { openRow(d.row); return; }
   if (d.filter) { S.filter = d.filter; S.limit = 200; updateShow(); return; }
@@ -1052,12 +1174,18 @@ document.addEventListener('click', (e) => {
 document.addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = e.target;
-  if (f.id === 'sectorForm') {
-    const v = C.matchSector($('#sectorIn').value, S.shows);
-    if (!v) { toast('Type a sector first'); return; }
-    S.set.lastSector = v; saveSet();
-    go({ v: 'sector', sector: v });
-  } else if (f.id === 'showForm') submitShow(f);
+  if (f.id === 'findForm') {
+    const r = C.resolveSector($('#findIn').value, S.shows);
+    if (!r.sector) {
+      findPinned = true; $('#findIn').blur(); setFindList(true);
+      toast(r.matches.length ? 'Choose one from the list, or keep typing' : 'Type a sector, or choose one from the list');
+      return;
+    }
+    S.set.lastSector = r.sector; saveSet();
+    closeFind();
+    go({ v: 'sector', sector: r.sector });
+  } else if (f.id === 'renameForm') submitRename(f);
+  else if (f.id === 'showForm') submitShow(f);
   else if (f.id === 'connectForm') {
     const ok = await withBusy(f.querySelector('[type=submit]'), () => connect(f.url.value, f.token.value));
     if (ok) { renderMain(); renderHeader(); if (S.shared) { const p = S.shared; S.shared = null; closeSheet(); openAddShow(p); } else openSettings(); }
