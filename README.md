@@ -29,7 +29,7 @@ The token stops strangers using the web app address. Keep it private. The repo n
 
 ## Use
 
-1. Tap the search icon at the top. Type a sector, or tap the arrow to choose from the list of 31. A number beside a sector is how many exhibitions you have already added to it.
+1. Tap the search icon at the top. The top bar stays in place as you scroll, and tapping anywhere outside the search panel closes it. Type a sector, or tap the arrow to choose from the list of 31. A number beside a sector is how many exhibitions you have already added to it.
 2. Use the searches on the sector screen to find shows. Open a show's exhibitor list.
 3. Share that page to Exhibitor Leads from Chrome's Share menu (Android, once installed), or copy its address and tap **Add exhibition**.
 4. The list is read and each exhibitor is checked. You can leave the app: the checks carry on every 10 minutes.
@@ -74,8 +74,8 @@ Each release bumps two markers together: `core.js?v=N` in `index.html` and the c
 - Contact names and emails come from company websites, so they are patchy. Emails are never guessed. A Companies House director is shown, labelled, only when a company is confirmed.
 - Sites that build their pages with JavaScript give little to read. The detail says so. For these the usual terms and privacy addresses are tried as well, which costs a few extra requests for exhibitors with no company number on their home page.
 - Sole traders are not on the Companies House register, so they cannot be confirmed and stay as consent needed.
-- The colour theme is chosen in Settings.
-- **Rename sector** on a sector's screen changes all its exhibitions at once. Choose a name that already exists to join two sectors together.
+- Eight colour themes are in Settings: four dark (Harbour, Graphite, Forest, Aubergine) and four light (Porcelain, Stone, Sage, Sky). Harbour is the default. Every theme keeps its text at a readable contrast.
+- The **plus**, **pencil** and **download** icons beside a sector's name add an exhibition, rename the sector (changing all its exhibitions at once) and download its CSV. Choose a name that already exists to join two sectors together.
 - **Your leads** on the home, sector and exhibition screens lists one fact per line, including how many appear to use Google Workspace.
 - The mail check looks at public MX records. "Probably Google" means Google sits behind a mail filter.
 - Apps Script cuts any run off at 6 minutes, so the work is done in short bursts: about 20 seconds at a time while the app is open, and up to 3 minutes every 10 minutes in the background. An exhibitor whose site is very slow has its extra pages skipped (the detail says so, and **Check again** retries), and one that is cut off twice is skipped.

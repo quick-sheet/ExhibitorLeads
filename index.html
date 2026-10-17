@@ -6,7 +6,8 @@
 <title>Exhibitor Leads</title>
 <meta name="description" content="Find who exhibits at UK shows and who you can email.">
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#0F1528">
+<meta name="theme-color" content="#0E1426">
+<script>try{var t=JSON.parse(localStorage.getItem("exl.settings")||"{}").theme;if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -19,56 +20,72 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600&display=swap">
 <style>
 :root {
-  --bg: #0F1528;
-  --raise: #161E37;
-  --raise-2: #1D2645;
-  --line: rgba(205, 214, 245, .09);
-  --line-2: rgba(205, 214, 245, .17);
-  --ink: #ECE8DF;
-  --ink-2: #A3ABC2;
-  --ink-3: #6E7794;
-  --sun: #F2C063;
-  --sun-soft: rgba(242, 192, 99, .17);
-  --on-sun: #1D1505;
-  --dome-in: #0A0F21;
-  --dome-out: #1A2448;
   --sans: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+:root,
+:root[data-theme="harbour"] {
+  --bg: #0E1426; --raise: #161D36; --raise-2: #1F2847;
+  --line: rgba(170, 177, 200, 0.1); --line-2: rgba(170, 177, 200, 0.19);
+  --ink: #EFEBE1; --ink-2: #AAB1C8; --ink-3: #8E96B4;
+  --sun: #F2C063; --sun-soft: rgba(242, 192, 99, 0.16); --on-sun: #1D1505;
+  --scrim: rgba(0, 0, 0, .6); --cell-k: #AAB1C8; --cell-n: #8E96B4; --thin: 300; --status: #0E1426;
   color-scheme: dark;
 }
-:root[data-theme="red"] {
-  --bg: #0C0404; --raise: #160707; --raise-2: #1F0A0A;
-  --line: rgba(255, 90, 70, .12); --line-2: rgba(255, 90, 70, .22);
-  --ink: #E2573F; --ink-2: #A9412F; --ink-3: #74291F;
-  --sun: #FF5B3D; --sun-soft: rgba(255, 91, 61, .18); --on-sun: #1A0503;
-  --dome-in: #070202; --dome-out: #1E0808;
+:root[data-theme="graphite"] {
+  --bg: #121315; --raise: #1B1D20; --raise-2: #25282C;
+  --line: rgba(167, 172, 180, 0.1); --line-2: rgba(167, 172, 180, 0.19);
+  --ink: #ECEEF0; --ink-2: #A7ACB4; --ink-3: #8A9099;
+  --sun: #6CAAFF; --sun-soft: rgba(108, 170, 255, 0.16); --on-sun: #06142B;
+  --scrim: rgba(0, 0, 0, .6); --cell-k: #A7ACB4; --cell-n: #8A9099; --thin: 300; --status: #121315;
+  color-scheme: dark;
 }
-:root[data-theme="amber"] {
-  --bg: #0D0904; --raise: #171008; --raise-2: #20170C;
-  --line: rgba(255, 190, 110, .10); --line-2: rgba(255, 190, 110, .20);
-  --ink: #EBC48A; --ink-2: #A98A5C; --ink-3: #6F5A3B;
-  --sun: #FFB04A; --sun-soft: rgba(255, 176, 74, .18); --on-sun: #1A0F02;
-  --dome-in: #080502; --dome-out: #241809;
+:root[data-theme="forest"] {
+  --bg: #0D1512; --raise: #15201B; --raise-2: #1E2C26;
+  --line: rgba(163, 182, 171, 0.1); --line-2: rgba(163, 182, 171, 0.19);
+  --ink: #E8EEE9; --ink-2: #A3B6AB; --ink-3: #81978B;
+  --sun: #CDB06A; --sun-soft: rgba(205, 176, 106, 0.16); --on-sun: #1C1604;
+  --scrim: rgba(0, 0, 0, .6); --cell-k: #A3B6AB; --cell-n: #81978B; --thin: 300; --status: #0D1512;
+  color-scheme: dark;
 }
-:root[data-theme="sea"] {
-  --bg: #06121A; --raise: #0B1C26; --raise-2: #102632;
-  --line: rgba(150, 220, 230, .09); --line-2: rgba(150, 220, 230, .18);
-  --ink: #D6E9EC; --ink-2: #8EAEB4; --ink-3: #5A7880;
-  --sun: #6FD9D0; --sun-soft: rgba(111, 217, 208, .16); --on-sun: #031513;
-  --dome-in: #030B10; --dome-out: #0F2A38;
+:root[data-theme="aubergine"] {
+  --bg: #150F1C; --raise: #1F1729; --raise-2: #2A2037;
+  --line: rgba(180, 166, 193, 0.1); --line-2: rgba(180, 166, 193, 0.19);
+  --ink: #F0E9F4; --ink-2: #B4A6C1; --ink-3: #9C8FAE;
+  --sun: #F29DBF; --sun-soft: rgba(242, 157, 191, 0.16); --on-sun: #2B0A18;
+  --scrim: rgba(0, 0, 0, .6); --cell-k: #B4A6C1; --cell-n: #9C8FAE; --thin: 300; --status: #150F1C;
+  color-scheme: dark;
 }
-:root[data-theme="aurora"] {
-  --bg: #07110D; --raise: #0C1A14; --raise-2: #11241B;
-  --line: rgba(150, 235, 190, .09); --line-2: rgba(150, 235, 190, .18);
-  --ink: #D7EBDF; --ink-2: #8DAA9A; --ink-3: #5A7566;
-  --sun: #86E3A8; --sun-soft: rgba(134, 227, 168, .16); --on-sun: #04140B;
-  --dome-in: #040A07; --dome-out: #12291E;
+:root[data-theme="porcelain"] {
+  --bg: #F5F4EF; --raise: #FFFFFF; --raise-2: #ECEAE2;
+  --line: rgba(22, 33, 31, 0.1); --line-2: rgba(22, 33, 31, 0.2);
+  --ink: #16211F; --ink-2: #475451; --ink-3: #586663;
+  --sun: #0B6B6B; --sun-soft: rgba(11, 107, 107, 0.12); --on-sun: #FFFFFF;
+  --scrim: rgba(18, 22, 30, .42); --cell-k: #586663; --cell-n: #838E8C; --thin: 400; --status: #15181E;
+  color-scheme: light;
 }
-:root[data-theme="dusk"] {
-  --bg: #110D1A; --raise: #1A1426; --raise-2: #221A31;
-  --line: rgba(210, 190, 255, .09); --line-2: rgba(210, 190, 255, .18);
-  --ink: #E8E1F4; --ink-2: #A79CBD; --ink-3: #6E6485;
-  --sun: #F2A7C8; --sun-soft: rgba(242, 167, 200, .16); --on-sun: #1E0812;
-  --dome-in: #0A0712; --dome-out: #261C3A;
+:root[data-theme="stone"] {
+  --bg: #F2EDE5; --raise: #FCF9F4; --raise-2: #E7E0D4;
+  --line: rgba(38, 32, 26, 0.1); --line-2: rgba(38, 32, 26, 0.2);
+  --ink: #26201A; --ink-2: #584E44; --ink-3: #66594D;
+  --sun: #B04526; --sun-soft: rgba(176, 69, 38, 0.12); --on-sun: #FFFFFF;
+  --scrim: rgba(18, 22, 30, .42); --cell-k: #66594D; --cell-n: #90867C; --thin: 400; --status: #15181E;
+  color-scheme: light;
+}
+:root[data-theme="sage"] {
+  --bg: #EEF1EA; --raise: #FAFBF8; --raise-2: #E0E6DA;
+  --line: rgba(27, 36, 28, 0.1); --line-2: rgba(27, 36, 28, 0.2);
+  --ink: #1B241C; --ink-2: #495749; --ink-3: #566656;
+  --sun: #2D6A3C; --sun-soft: rgba(45, 106, 60, 0.12); --on-sun: #FFFFFF;
+  --scrim: rgba(18, 22, 30, .42); --cell-k: #566656; --cell-n: #7F8B7F; --thin: 400; --status: #15181E;
+  color-scheme: light;
+}
+:root[data-theme="sky"] {
+  --bg: #EDF1F7; --raise: #FBFCFE; --raise-2: #DFE6F0;
+  --line: rgba(20, 26, 42, 0.1); --line-2: rgba(20, 26, 42, 0.2);
+  --ink: #141A2A; --ink-2: #445068; --ink-3: #54617C;
+  --sun: #3D4DC0; --sun-soft: rgba(61, 77, 192, 0.12); --on-sun: #FFFFFF;
+  --scrim: rgba(18, 22, 30, .42); --cell-k: #54617C; --cell-n: #7F899E; --thin: 400; --status: #15181E;
+  color-scheme: light;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -79,7 +96,7 @@ body {
   color: var(--ink);
   font: 400 16px/1.45 var(--sans);
   -webkit-font-smoothing: antialiased;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   min-height: 100vh;
 }
 button, input, textarea { font: inherit; color: inherit; }
@@ -89,7 +106,14 @@ a { color: inherit; }
 .num { font-variant-numeric: tabular-nums; }
 .wrap { max-width: 34rem; margin: 0 auto; padding: 0 20px 48px; position: relative; }
 
-/* Header */
+/* Header: stays put while the page scrolls */
+.top { position: sticky; top: 0; z-index: 20; background: var(--bg); transition: box-shadow .2s; }
+@supports (backdrop-filter: blur(1px)) and (background: color-mix(in srgb, red, blue)) {
+  .top { background: color-mix(in srgb, var(--bg) 94%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+}
+.top.scrolled { box-shadow: 0 1px 0 var(--line-2); }
+.top::before { content: ""; display: block; height: env(safe-area-inset-top); background: var(--status); }
+.top-in { max-width: 34rem; margin: 0 auto; padding: 0 20px 6px; }
 header { display: grid; grid-template-columns: 1fr auto; align-items: start; padding: 18px 0 6px; }
 .brand { display: flex; align-items: flex-start; gap: 2px; min-width: 0; }
 .back { margin: -10px 0 0 -12px; flex: none; }
@@ -102,7 +126,7 @@ header { display: grid; grid-template-columns: 1fr auto; align-items: start; pad
 .icon-btn svg { width: 22px; height: 22px; }
 
 /* Notices */
-.notice { display: flex; gap: 12px; align-items: center; margin: 10px 0 0; padding: 10px 12px 10px 14px; border-radius: 14px; background: var(--raise); font-size: 14px; color: var(--ink-2); }
+.notice { display: flex; gap: 12px; align-items: center; margin: 10px 0 0; padding: 10px 12px 10px 14px; border-radius: 14px; background: var(--raise); border: 1px solid var(--line); font-size: 14px; color: var(--ink-2); }
 .notice p { margin: 0; flex: 1; }
 .notice .link-btn { color: var(--sun); font-weight: 600; white-space: nowrap; text-decoration: none; }
 .notice .x { color: var(--ink-3); width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; }
@@ -113,14 +137,20 @@ header { display: grid; grid-template-columns: 1fr auto; align-items: start; pad
 .plan { display: block; width: min(100%, 320px); height: auto; margin: 8px auto 20px; overflow: visible; }
 .plan .hall { fill: var(--raise); stroke: var(--line-2); }
 .plan .c-c { fill: var(--sun); }
-.plan .c-k { fill: var(--ink-2); }
-.plan .c-n { fill: var(--ink-3); }
+.plan .c-k { fill: var(--cell-k); }
+.plan .c-n { fill: var(--cell-n); }
 .plan .c-p { fill: none; stroke: var(--ink-3); stroke-width: 1.2; }
 .plan .c-e { fill: none; stroke: var(--line-2); stroke-width: 1.2; stroke-dasharray: 3 3; }
 .title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.title-row > :first-child { flex: 1; min-width: 0; }
+.row-icons { display: flex; flex: none; margin: -9px -10px 0 0; }
+.ico-btn { width: 44px; height: 44px; display: grid; place-items: center; color: var(--ink-2); transition: opacity .12s; }
+.ico-btn.main { color: var(--sun); }
+.ico-btn:active { opacity: .45; }
+.ico-btn svg { width: 24px; height: 24px; }
 .sat-name { margin: 0; font-size: 26px; line-height: 1.15; font-weight: 600; letter-spacing: -.015em; overflow-wrap: anywhere; }
 .when { margin: 4px 0 0; font-size: 15px; color: var(--ink-2); }
-.story { margin: 14px 0 0; font-size: 18px; font-weight: 300; line-height: 1.55; letter-spacing: .005em; color: var(--ink); max-width: 30em; }
+.story { margin: 14px 0 0; font-size: 18px; font-weight: var(--thin); line-height: 1.55; letter-spacing: .005em; color: var(--ink); max-width: 30em; }
 .facts { margin: 10px 0 0; font-size: 14px; color: var(--ink-2); }
 .empty-title { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
 .empty-body { margin: 8px 0 0; color: var(--ink-2); max-width: 28em; }
@@ -170,8 +200,8 @@ textarea.field { height: auto; min-height: 96px; padding: 10px 12px; resize: ver
 .ex-t { min-width: 0; }
 .dot { width: 12px; height: 12px; border-radius: 3px; }
 .dot.corporate { background: var(--sun); }
-.dot.check { background: var(--ink-2); }
-.dot.consent { background: var(--ink-3); }
+.dot.check { background: var(--cell-k); }
+.dot.consent { background: var(--cell-n); }
 .dot.pending { border: 1.5px solid var(--ink-3); }
 .more-btn { display: block; width: 100%; padding: 14px 0; text-align: left; font-size: 14px; font-weight: 500; color: var(--ink-2); border-bottom: 1px solid var(--line); }
 .empty-list { margin: 18px 0 0; color: var(--ink-2); }
@@ -184,7 +214,7 @@ dialog.sheet {
   overflow: auto; overscroll-behavior: contain;
 }
 dialog.sheet[open] { animation: rise .28s cubic-bezier(.2, .8, .2, 1); }
-dialog.sheet::backdrop { background: rgba(4, 6, 14, .62); }
+dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 @keyframes rise { from { transform: translateY(40px); opacity: 0; } }
 .sheet-in { padding: 10px 22px calc(28px + env(safe-area-inset-bottom)); }
 .grabber { width: 36px; height: 4px; border-radius: 2px; background: var(--line-2); margin: 0 auto 10px; }
@@ -192,6 +222,7 @@ dialog.sheet::backdrop { background: rgba(4, 6, 14, .62); }
 .sheet-head h2 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -.01em; overflow-wrap: anywhere; }
 .sheet h3 { margin: 26px 0 6px; font-size: 15px; font-weight: 600; }
 .sheet p { margin: 6px 0; color: var(--ink-2); font-size: 15px; }
+.sheet p.hint, .sheet .hint { margin: 6px 0 0; font-size: 13.5px; color: var(--ink-3); }
 .sheet .small, .small { font-size: 13.5px; color: var(--ink-3); }
 .sheet .chips { margin-top: 10px; }
 .kv { padding: 10px 0; border-bottom: 1px solid var(--line); }
@@ -211,14 +242,14 @@ dialog.sheet::backdrop { background: rgba(4, 6, 14, .62); }
 .status-box p { margin: 2px 0; font-size: 14px; }
 
 /* Find shows */
-.find { margin: 4px 0 6px; padding: 14px; border-radius: 18px; background: var(--raise); animation: drop .18s ease-out; }
+.find { margin: 4px 0 4px; padding: 14px; border-radius: 18px; background: var(--raise); border: 1px solid var(--line); animation: drop .18s ease-out; }
 @keyframes drop { from { opacity: 0; transform: translateY(-6px); } }
 .combo { position: relative; flex: 1; min-width: 0; }
 .combo .field { padding-right: 46px; }
 .combo-btn { position: absolute; right: 0; top: 0; width: 46px; height: 44px; display: grid; place-items: center; color: var(--ink-2); border-radius: 12px; }
 .combo-btn svg { width: 20px; height: 20px; transition: transform .18s; }
 .combo-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
-.find-list { margin-top: 10px; max-height: min(52vh, 400px); overflow-y: auto; overscroll-behavior: contain; border-radius: 12px; background: var(--bg); }
+.find-list { margin-top: 10px; max-height: min(46vh, 380px); overflow-y: auto; overscroll-behavior: contain; border-radius: 12px; background: var(--bg); }
 .opt { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 46px; padding: 0 14px; text-align: left; font-size: 15.5px; color: var(--ink); border-bottom: 1px solid var(--line); }
 .opt:last-child { border-bottom: 0; }
 .opt:active { background: var(--raise-2); }
@@ -228,7 +259,7 @@ dialog.sheet::backdrop { background: rgba(4, 6, 14, .62); }
 #searchBtn .i-close, #searchBtn[aria-expanded="true"] .i-open { display: none; }
 #searchBtn[aria-expanded="true"] .i-close { display: block; }
 #searchBtn[aria-expanded="true"] { color: var(--sun); }
-.leads { list-style: none; margin: 14px 0 0; padding: 0; max-width: 30em; font-size: 17px; font-weight: 300; line-height: 1.4; color: var(--ink); }
+.leads { list-style: none; margin: 14px 0 0; padding: 0; max-width: 30em; font-size: 17px; font-weight: var(--thin); line-height: 1.4; color: var(--ink); }
 .leads li { padding: 6px 0; }
 .leads strong { font-weight: 600; }
 
@@ -236,13 +267,12 @@ dialog.sheet::backdrop { background: rgba(4, 6, 14, .62); }
 .use { margin-top: 12px; }
 .use-row { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; font-size: 14px; color: var(--ink-2); }
 .use-row b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
-.theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 6px; }
+.theme-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 4px; margin-top: 8px; }
 .theme-opt { display: grid; justify-items: center; gap: 6px; padding: 4px 0; font-size: 12.5px; color: var(--ink-2); }
 .theme-opt[aria-pressed="true"] { color: var(--ink); }
 .sw { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line-2);
   background: radial-gradient(circle, var(--b) 0 6px, transparent 7px), radial-gradient(circle at 50% 35%, var(--c), var(--a)); }
 .theme-opt[aria-pressed="true"] .sw { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--sun); }
-.theme-note { margin: 12px 4px 0; font-size: 12.5px; color: var(--ink-3); }
 
 /* Toast */
 .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
@@ -255,7 +285,7 @@ dialog.sheet::backdrop { background: rgba(4, 6, 14, .62); }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="top" id="top"><div class="top-in">
   <header>
     <div class="brand">
       <button class="icon-btn back" id="back" type="button" data-act="back" aria-label="Back" hidden>
@@ -291,6 +321,8 @@ dialog.sheet::backdrop { background: rgba(4, 6, 14, .62); }
     </form>
     <div class="find-list" id="findList" role="listbox" aria-label="Sectors" hidden></div>
   </div>
+</div></div>
+<div class="wrap">
   <div id="notices"></div>
   <main id="main" aria-live="polite"></main>
   <p class="foot" id="foot">A guide only, not legal advice. Emailing a limited company still needs your name, a relevant offer and a way to opt out. Company details come from Companies House. Pages are read politely and only where the site allows it.</p>
@@ -299,7 +331,7 @@ dialog.sheet::backdrop { background: rgba(4, 6, 14, .62); }
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="core.js?v=3"></script>
+<script src="core.js?v=4"></script>
 <script>
 (() => {
 'use strict';
@@ -319,12 +351,14 @@ const put = (k, v) => { try { localStorage.setItem(P + k, JSON.stringify(v)); } 
 const drop = (k) => { try { localStorage.removeItem(P + k); } catch {} };
 
 const THEMES = [
-  { id: 'twilight', name: 'Twilight', bg: '#0F1528', dome: '#1A2448', accent: '#F2C063' },
-  { id: 'red', name: 'Night red', bg: '#0C0404', dome: '#1E0808', accent: '#FF5B3D' },
-  { id: 'amber', name: 'Amber', bg: '#0D0904', dome: '#241809', accent: '#FFB04A' },
-  { id: 'sea', name: 'Deep sea', bg: '#06121A', dome: '#0F2A38', accent: '#6FD9D0' },
-  { id: 'aurora', name: 'Aurora', bg: '#07110D', dome: '#12291E', accent: '#86E3A8' },
-  { id: 'dusk', name: 'Dusk', bg: '#110D1A', dome: '#261C3A', accent: '#F2A7C8' },
+  { id: 'harbour', name: 'Harbour', bg: '#0E1426', card: '#161D36', accent: '#F2C063' },
+  { id: 'graphite', name: 'Graphite', bg: '#121315', card: '#1B1D20', accent: '#6CAAFF' },
+  { id: 'forest', name: 'Forest', bg: '#0D1512', card: '#15201B', accent: '#CDB06A' },
+  { id: 'aubergine', name: 'Aubergine', bg: '#150F1C', card: '#1F1729', accent: '#F29DBF' },
+  { id: 'porcelain', name: 'Porcelain', bg: '#F5F4EF', card: '#FFFFFF', accent: '#0B6B6B' },
+  { id: 'stone', name: 'Stone', bg: '#F2EDE5', card: '#FCF9F4', accent: '#B04526' },
+  { id: 'sage', name: 'Sage', bg: '#EEF1EA', card: '#FAFBF8', accent: '#2D6A3C' },
+  { id: 'sky', name: 'Sky', bg: '#EDF1F7', card: '#FBFCFE', accent: '#3D4DC0' },
 ];
 
 const S = {
@@ -334,7 +368,7 @@ const S = {
   rows: {},                         // showId -> rows
   route: { v: 'home' },
   filter: 'all', q: '', limit: 200,
-  set: Object.assign({ theme: 'twilight', lastSector: '' }, get('settings', {})),
+  set: Object.assign({ theme: 'harbour', lastSector: '' }, get('settings', {})),
   status: get('status', null),
   usage: null,                      // the last 24 hours, from the sheet. Never saved, so it is never stale
   usageHidden: '',
@@ -365,6 +399,8 @@ function toast(msg) {
 const ICON = {
   chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
   more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="M13.5 6.5l4 4"/></svg>',
   x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>',
 };
@@ -505,6 +541,7 @@ window.addEventListener('popstate', (e) => {
   S.filter = 'all'; S.q = ''; S.limit = 200;
   closeSheet(); closeFind();
   enter();
+  window.scrollTo(0, 0);   // going back shows the screen from its top, not where it was left
 });
 async function enter() {
   render();
@@ -615,11 +652,13 @@ function sectorHtml(sector) {
   const links = C.searchLinks(sector);
   const groups = C.groupShows(shows, today());
   return `<section class="hero">${planSvg(t.total ? t : null)}
-      <h1 class="sat-name">${esc(sector)}</h1>
+      <div class="title-row"><h1 class="sat-name">${esc(sector)}</h1>
+        <div class="row-icons">
+          <button class="ico-btn main" type="button" data-act="add-show" aria-label="Add exhibition" title="Add exhibition">${ICON.plus}</button>
+          ${shows.length ? `<button class="ico-btn" type="button" data-act="rename-sector" aria-label="Rename sector" title="Rename sector">${ICON.pencil}</button>` : ''}
+          ${t.total ? `<button class="ico-btn" type="button" data-act="sector-csv" aria-label="Download CSV" title="Download CSV">${ICON.down}</button>` : ''}
+        </div></div>
       ${shows.length ? leadsHtml({ n: String(shows.length), text: shows.length === 1 ? 'exhibition' : 'exhibitions' }, t, 'No exhibitors loaded yet.') : '<p class="empty-body">No exhibitions yet. Run one of the searches below, open a show’s exhibitor list, then add it here.</p>'}
-      <div class="actions"><button class="btn primary" type="button" data-act="add-show">Add exhibition</button>
-      ${t.total ? `<button class="btn" type="button" data-act="sector-csv">${ICON.down}Download CSV</button>` : ''}
-      ${shows.length ? '<button class="btn" type="button" data-act="rename-sector">Rename sector</button>' : ''}</div>
     </section>
     <h2 class="section-title" style="margin-top:8px">Find exhibitions</h2>
     <p class="section-note">These open a Google search in a new tab. Find a show’s exhibitor list, then share it to Exhibitor Leads or copy its address.</p>
@@ -834,8 +873,7 @@ function openConfirm(title, body, act, label, id) {
 /* Settings */
 function themeGridHtml() {
   return `<div class="theme-grid">${THEMES.map((t) => `<button class="theme-opt" type="button" data-theme="${t.id}" aria-pressed="${S.set.theme === t.id}">
-      <span class="sw" style="--a:${t.bg};--c:${t.dome};--b:${t.accent}"></span>${t.name}</button>`).join('')}</div>
-    <p class="theme-note">Night red and Amber are gentlest on eyes adjusted to the dark.</p>`;
+      <span class="sw" style="--a:${t.bg};--c:${t.card};--b:${t.accent}"></span>${t.name}</button>`).join('')}</div>`;
 }
 
 function statusBox() {
@@ -909,7 +947,7 @@ async function connect(url, token) {
 function setTheme(id) {
   const t = THEMES.find((x) => x.id === id) || THEMES[0];
   S.set.theme = t.id; saveSet();
-  if (t.id === 'twilight') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t.id;
+  document.documentElement.dataset.theme = t.id;
   $('meta[name=theme-color]').setAttribute('content', t.bg);
   document.querySelectorAll('.theme-opt').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.theme === t.id)));
 }
@@ -936,7 +974,6 @@ function openFind() {
   if (!S.api) return;
   $('#findPanel').hidden = false;
   $('#searchBtn').setAttribute('aria-expanded', 'true');
-  window.scrollTo(0, 0);
   $('#findIn').focus();
 }
 function closeFind() {
@@ -957,6 +994,13 @@ $('#findIn').addEventListener('input', () => {
   const typed = $('#findIn').value.trim() !== '';
   if (typed || findPinned) setFindList(true); else setFindList(false);
 });
+// A tap anywhere else closes the panel. Only the back and Settings buttons also do their own job, so a tap never presses something by accident.
+document.addEventListener('click', (e) => {
+  if (!findOpen() || e.target.closest('#findPanel, #searchBtn')) return;
+  const through = e.target.closest('#back, #settingsBtn');
+  closeFind();
+  if (!through) { e.preventDefault(); e.stopPropagation(); }
+}, true);
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && findOpen() && !sheet.open) { closeFind(); $('#searchBtn').focus(); }
 });
@@ -1242,6 +1286,10 @@ document.addEventListener('visibilitychange', () => {
 
 /* ---------- Start ---------- */
 function start() {
+  try { history.scrollRestoration = 'manual'; } catch {}
+  const top = $('#top');
+  const edge = () => top.classList.toggle('scrolled', window.scrollY > 2);
+  window.addEventListener('scroll', edge, { passive: true }); edge();
   setTheme(S.set.theme);
   saveSet();
   // A page shared from another app arrives as ?title=&text=&url=
