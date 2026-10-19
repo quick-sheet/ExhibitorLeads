@@ -116,4 +116,3 @@ Each release bumps two markers together: `core.js?v=N` in `index.html` and the c
 - Some exhibitors share a website (a distributor with several brands). They share one set of results.
 - Spreadsheets drop the leading zero of a company number such as 07654321. The CSV also has a Companies House page link for each company.
 - On some Android phones every launch of the installed app plays a sound and shows a Chrome notification saying "Tap to copy the URL for this app". That is Chrome's **Full screen site controls** notification category. Long-press the notification and turn that category off.
-Manual2
