@@ -9,7 +9,8 @@ Live at `https://quick-sheet.github.io/ExhibitorLeads/`. The page holds no data.
 ## Host
 
 1. Deploy the Apps Script (see below) and keep the web app address and token.
-2. Create the repo `quick-sheet/ExhibitorLeads` (public), upload every file in this folder, and turn on GitHub Pages from the `main` branch, root folder.
+2. Create the repo `quick-sheet/ExhibitorLeads` (public) and upload every file in this folder.
+3. Publish it with GitHub Pages. This repo uses a small workflow, `.github/workflows/pages.yml` ("Deploy to Pages"), with **Settings, Pages, Source** set to **GitHub Actions**. It runs on every commit to `main` and can also be started by hand from the **Actions** tab (**Run workflow**). It is pinned to `ubuntu-24.04`, because GitHub's plain branch build sat in a queue for hours. Do not delete it. A new repo can instead choose **Deploy from a branch, main, root folder** if that builds promptly.
 
 ## Set up the Apps Script (once, on a computer)
 
@@ -17,8 +18,9 @@ Live at `https://quick-sheet.github.io/ExhibitorLeads/`. The page holds no data.
 2. Paste `apps-script/Code.gs` over the default file. In **Project Settings** tick **Show "appsscript.json" manifest file in editor**, then paste `apps-script/appsscript.json` into it.
 3. Get a free Companies House key: register at developer.company-information.service.gov.uk, create an application, then add a **REST** key. In Apps Script open **Project Settings, Script Properties**, add `CH_KEY` and paste the key as its value.
 4. Choose `setup` in the toolbar, press **Run** and approve access. Open **Execution log**: it shows your access token and the Sheet address. Copy the token.
-5. **Deploy, New deployment, Web app**. Set **Execute as** Me and **Who has access** Anyone, then **Deploy** and copy the **Web app URL**.
-6. Open the app, tap the sliders icon (Settings), paste the web app address and the token, and tap **Connect**.
+5. Choose `authorise` in the toolbar, press **Run** and approve. This lets the script send you notification emails (see Release 10 below). It does nothing else and sends nothing.
+6. **Deploy, New deployment, Web app**. Set **Execute as** Me and **Who has access** Anyone, then **Deploy** and copy the **Web app URL**.
+7. Open the app, tap the sliders icon (Settings), paste the web app address and the token, and tap **Connect**.
 
 The token stops strangers using the web app address. Keep it private. The repo never contains it.
 
@@ -50,18 +52,34 @@ This is a guide, not legal advice.
 ## Update
 
 1. **Add file, Upload files**, choose the changed files (same names replace the old ones), then **Commit changes**.
-2. Wait about a minute.
+2. Open the **Actions** tab and wait for **Deploy to Pages** to show a green tick (usually under a minute). Opening `sw.js` on the live address should show the new `exhibitorleads-vN` name.
 3. Fully close the app and reopen it. If it still looks the same, close and reopen once more.
 
-**Release 9 (Apps Script release 9).** After deploying the new `Code.gs`, open **Settings**: the box under the connection form says **Apps Script release: 9, up to date**. If it says older, the new version was not deployed (see the last paragraph below), and the app also shows a warning on the main screen until it is.
+**Release 10 (Apps Script release 10).** Notifications now reach ntfy by email, and the pop-up messages show above open panels.
 
-What release 9 adds:
+1. Paste the new `Code.gs` over the old one and save.
+2. Choose `authorise` in the toolbar, press **Run** and approve the new permission, **Send email as you**. Open **Execution log**: it says how many emails the script can still send today. This is needed once, and sends nothing.
+3. **Deploy, Manage deployments**, tap the pencil, set Version to **New version** and **Deploy**. The address stays the same.
+4. Upload `index.html`, `sw.js` and `README.md` and commit. Nothing changes in ntfy on your phone: the notification code is the same.
+5. Open **Settings** (the box says **Apps Script release: 10, up to date**), then **Notifications, Send test notification**. The result is written under the button: “Sent at 18:20…”, or the exact reason it could not send. The message reaches ntfy within about a minute.
+
+What release 10 changes:
+
+- **Why.** ntfy.sh turns away web requests from Google's shared servers (error 429), which is where Apps Script runs. Release 9 sent them that way and so failed. Release 10 has Apps Script send a short email to `ntfy-<your code>@ntfy.sh`, which ntfy turns into a notification (the subject becomes the title, the body the message). Same rules as before: only when you are away, only for checks of 5 or more exhibitors, one message per exhibition, the same wording.
+- **The link.** The email route cannot carry a tap action, so on Android the exhibition link is written in the message itself: tap that link to open the exhibition. Tapping the notification opens ntfy. On iPhone there is no link, so open Exhibitor Leads from your Home Screen.
+- **Pop-up messages** (“Test sent”, “Copied”) were drawn behind open panels such as the notification steps, so you never saw them. They now sit on top, and the test result is also written inside the panel.
+- **Limits.** Google lets a free account send about 100 emails a day (about 1,500 on Workspace), far more than this needs. If an email cannot be sent, the app shows why. A failed delivery can also come back as a bounce message in your Gmail inbox. Messages sent by email can take up to a minute to arrive.
+
+
+Every release: after deploying the new `Code.gs`, open **Settings**: the box under the connection form says **Apps Script release: N, up to date**. If it says older, the new version was not deployed (see the last paragraph below), and the app also shows a warning on the main screen until it is.
+
+What release 9 added:
 
 - **Notifications through ntfy.** When a check of 5 or more exhibitors finishes and you are not in the app, ntfy sends one message, for example “Baby & Toddler Show: all 120 checked. 34 can email, 29 to check, 57 need consent. 9 sites wouldn’t open.” Settings has a **Notifications** section with the setup steps (Android: install ntfy, tap Connect, turn on instant delivery; iPhone: install ntfy, copy the code, subscribe by hand) and a **Send test notification** button.
   - “Not in the app” means the app has not contacted your sheet for about two and a half minutes (it is closed, or the phone is locked). Nothing is sent while you are watching a check finish.
   - Smaller jobs (fewer than 5 exhibitors, such as checking one business again) finish without a message. One message per exhibition, however many runs it took.
   - The notification code is made on your phone and kept in your Apps Script's Script Properties, never in the repository. Anyone who knows the code could read the messages, which only hold the exhibition name and counts. **Turn off** forgets it.
-  - On Android, tapping the message opens the exhibition in the app. On iPhone it opens ntfy only, because a tap would otherwise open Safari, which does not have your settings. Open Exhibitor Leads from your Home Screen.
+  - On Android the message holds a link to the exhibition (from release 10; release 9 made the tap itself open the app). On iPhone there is no link, because it would open Safari, which does not have your settings. Open Exhibitor Leads from your Home Screen.
 
 What release 8 added:
 
@@ -92,7 +110,8 @@ Each release bumps two markers together: `core.js?v=N` in `index.html` and the c
 | `sw.js` | Offline support and instant updates |
 | `manifest.webmanifest` | Install to the home screen and receive shared pages |
 | `icon.svg`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon.png` | Icons |
-| `apps-script/Code.gs`, `apps-script/appsscript.json` | The thin server: Sheet storage, Companies House, mail-record check, directory reading |
+| `apps-script/Code.gs`, `apps-script/appsscript.json` | The thin server: Sheet storage, Companies House, mail-record check, directory reading, notification emails |
+| `.github/workflows/pages.yml` | Publishes the site with GitHub Pages (set up once in the repo, not in this folder) |
 
 ## Good to know
 

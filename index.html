@@ -340,10 +340,14 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
   background: radial-gradient(circle, var(--b) 0 6px, transparent 7px), radial-gradient(circle at 50% 35%, var(--c), var(--a)); }
 .theme-opt[aria-pressed="true"] .sw { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--sun); }
 
-/* Toast */
-.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+/* Toast. It is a popover, which the browser draws in its top layer, so it shows above an open sheet (a sheet is a modal dialog
+   and covers any ordinary element, whatever its z-index). The resets below undo the browser's own popover box. */
+.toast { position: fixed; inset: auto auto calc(24px + env(safe-area-inset-bottom)) 50%; margin: 0; border: 0; width: max-content; height: auto; overflow: visible; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
   background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 22px; font-size: 14px; font-weight: 500; transition: opacity .2s, transform .2s; max-width: calc(100% - 40px); text-align: center; z-index: 30; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+.notify-result { margin: 12px 0 0; font-size: 14px; line-height: 1.45; color: var(--ink-2); }
+.notify-result:empty { display: none; }
+.notify-result.bad { color: var(--st-consent); font-weight: 500; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -395,9 +399,9 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 </div>
 
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
-<div class="toast" id="toast" role="status"></div>
+<div class="toast" id="toast" role="status" popover="manual"></div>
 
-<script src="core.js?v=9"></script>
+<script src="core.js?v=10"></script>
 <script>
 (() => {
 'use strict';
@@ -455,13 +459,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const showById = (id) => S.shows.find((s) => s.id === id);
 const today = () => C.todayIso();
 
-let toastTimer;
+let toastTimer, toastHide;
 function toast(msg) {
   const t = $('#toast');
   t.textContent = msg;
+  clearTimeout(toastTimer); clearTimeout(toastHide);
+  // Shown as a popover so it sits above an open sheet. Showing it again puts it back on top. An older browser just shows it as before.
+  try { if (t.showPopover) { if (t.matches(':popover-open')) t.hidePopover(); t.showPopover(); } } catch (e) { /* no popover support */ }
+  void t.offsetWidth;   // so it fades in rather than appearing
   t.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), Math.max(2600, msg.length * 55));
+  toastTimer = setTimeout(() => {
+    t.classList.remove('show');
+    toastHide = setTimeout(() => { try { if (t.matches(':popover-open')) t.hidePopover(); } catch (e) { /* no popover support */ } }, 260);
+  }, Math.max(2600, msg.length * 55));
 }
 
 const ICON = {
@@ -524,7 +534,7 @@ function setUsage(u) {
 const oldScript = (e) => (/unknown action/i.test(e.message || '') ? 'Your Apps Script needs its new version first. The README says how (Update).' : e.message);
 
 // The release of Apps Script code this app expects. Shown in Settings; a warning appears when the script behind the app is older.
-const EXPECT_BUILD = 9;
+const EXPECT_BUILD = 10;
 
 async function checkBuild() {
   if (!S.api) return;
@@ -1058,9 +1068,10 @@ function notifyHtml() {
   if (!S.api || !st) return '<div id="notifyBox"></div>';
   const n = st.notify;
   let h = '<div id="notifyBox"><h3>Notifications</h3>';
-  if (!n) h += '<p class="hint">These need release 9 of the Apps Script. Deploy the new version first.</p>';
-  else if (n.on) h += `<p>On. You get a message in the ntfy app when a check of 5 or more exhibitors finishes and you are not in this app.${isIOS ? ' On iPhone, tapping the message opens ntfy, so open Exhibitor Leads from your Home Screen.' : ''}</p>
-      <div class="actions"><button class="btn" type="button" data-act="notify-test">Send test notification</button><button class="btn" type="button" data-act="notify-setup">Setup steps</button><button class="btn" type="button" data-act="notify-off">Turn off</button></div>`;
+  if (!n) h += '<p class="hint">These need release 10 of the Apps Script. Deploy the new version first.</p>';
+  else if (n.on) h += `<p>On. You get a message in the ntfy app when a check of 5 or more exhibitors finishes and you are not in this app. It can take up to a minute to arrive.${isIOS ? ' On iPhone, open Exhibitor Leads from your Home Screen.' : ' Tap the link in the message to open that exhibition.'}</p>
+      <div class="actions"><button class="btn" type="button" data-act="notify-test">Send test notification</button><button class="btn" type="button" data-act="notify-setup">Setup steps</button><button class="btn" type="button" data-act="notify-off">Turn off</button></div>
+      <p class="notify-result" role="status"></p>`;
   else h += `<p>Get a message on your phone when a big check finishes while you are away from the app. It uses ntfy, a free notification app with no account.</p>
       <div class="actions"><button class="btn primary" type="button" data-act="notify-setup">Set up notifications</button></div>`;
   return h + '</div>';
@@ -1084,7 +1095,13 @@ async function openNotifySetup() {
   openSheet(`${head('Get notifications')}
     <p>When a check of 5 or more exhibitors finishes and you are not in the app, ntfy tells you how many can be emailed. Nothing is sent while you are watching it finish.</p>
     <ol class="steps">${steps}</ol>
-    <div class="actions"><button class="btn primary" type="button" data-act="settings">Done</button><button class="btn" type="button" data-act="notify-test">Send test notification</button></div>`);
+    <div class="actions"><button class="btn primary" type="button" data-act="settings">Done</button><button class="btn" type="button" data-act="notify-test">Send test notification</button></div>
+    <p class="notify-result" role="status"></p>`);
+}
+
+/* The result of the test message, written where you are looking (a pop-up alone is easy to miss). */
+function showNotifyResult(msg, bad) {
+  document.querySelectorAll('.notify-result').forEach((el) => { el.textContent = msg; el.classList.toggle('bad', !!bad); if (msg && el.offsetParent) { try { el.scrollIntoView({ block: 'nearest' }); } catch (e) { /* older browser */ } } });
 }
 
 function usageHtml() {
@@ -1467,8 +1484,13 @@ async function act(name, t) {
     case 'notify-setup': await withBusy(t, openNotifySetup); break;
     case 'notify-test': {
       await withBusy(t, async () => {
-        try { await call('testNotify', null, 30000); toast('Test sent. It should arrive in ntfy in a moment'); }
-        catch (e) { toast(oldScript(e)); }
+        showNotifyResult('Sending…');
+        try {
+          await call('testNotify', null, 30000);
+          const at = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date());
+          showNotifyResult(`Sent at ${at}. It should reach ntfy within a minute. If it does not, look in your Gmail inbox for a bounce message.`);
+          toast('Test sent. It should arrive in ntfy within a minute');
+        } catch (e) { showNotifyResult(oldScript(e), true); toast(oldScript(e)); }
       });
       break;
     }

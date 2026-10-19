@@ -14,7 +14,7 @@
 
 const VERSION = 1;
 // Which release of this code is live. The app shows it in Settings and warns when it is older than the app expects.
-const BUILD = 9;
+const BUILD = 10;
 const TZ = 'Europe/London';
 const UA = 'ExhibitorLeads/1 (personal prospecting tool; Google Apps Script)';
 const MAX_BODY = 600000;
@@ -1499,9 +1499,14 @@ function pubEx(r) { const o = {}; EX_COLS.forEach((c) => { if (c !== 'detailUrl'
 
 function ping() { return { ok: true, v: VERSION, build: BUILD }; }
 
-/* ---------- Notifications through ntfy: a message on the phone when a big check has finished and you are not in the app ---------- */
+/* ---------- Notifications through ntfy: a message on the phone when a big check has finished and you are not in the app ----------
+ * The message goes to ntfy by email, to ntfy-<your code>@ntfy.sh: ntfy makes the subject the title and the body the message.
+ * It is not sent to ntfy's web address. ntfy.sh limits web requests per sending address, and Google's servers share their
+ * addresses with a great many other scripts, so a web request from here is nearly always turned away (HTTP 429).
+ * Mail leaves through Gmail's own servers and gets through. ntfy cannot read a priority, tags or a tap-through link from an email,
+ * so the link to the exhibition goes in the message text. */
 
-const NTFY = 'https://ntfy.sh';
+const NTFY_MAIL = 'ntfy.sh';
 const AWAY_MS = 150000;   // no call from the app for this long: you are not looking at it
 const NOTIFY_MIN = 5;     // a job of fewer exhibitors than this finishes without a message
 
@@ -1528,21 +1533,38 @@ function setNotify(p) {
   return notifyInfo();
 }
 
-/** Sends one message. Never throws: a failed notification must not get in the way of the checks. */
-function sendNtfy(title, message, click) {
+/** What went wrong with an email, in words for the phone. */
+function mailError(e) {
+  const m = String((e && e.message) || e || '');
+  if (/permission|authori[sz]/i.test(m)) return 'Apps Script needs your approval to send email. In Apps Script choose authorise, press Run and approve (the README says how)';
+  if (/too many times|quota|limit/i.test(m)) return 'Google has stopped this script sending email for today (its daily limit). It starts again tomorrow';
+  return 'The email was not sent (' + clip(m.replace(/^Exception:\s*/i, ''), 80) + ')';
+}
+
+/** Sends one message to the notification code by email. Never throws: a failed notification must not get in the way of the checks. */
+function sendNtfy(title, message, link) {
   const topic = prop('NTFY_TOPIC');
-  if (!topic) return { code: -1 };
-  const q = ['title=' + encodeURIComponent(title), 'tags=white_check_mark', 'priority=3'];
-  if (click) q.push('click=' + encodeURIComponent(click));
-  const r = http(NTFY + '/' + encodeURIComponent(topic) + '?' + q.join('&'), { method: 'post', payload: message, contentType: 'text/plain; charset=utf-8' });
-  return { code: r.code, error: r.error };
+  if (!topic) return { ok: false, error: 'Set up notifications first' };
+  const body = String(message || '') + (link ? '\n\n' + link : '');
+  try {
+    MailApp.sendEmail({ to: 'ntfy-' + topic + '@' + NTFY_MAIL, subject: String(title || '').replace(/\s+/g, ' ').trim() || 'Exhibitor Leads', body, name: 'Exhibitor Leads' });
+    return { ok: true };
+  } catch (e) {
+    Logger.log('notify: ' + e);
+    return { ok: false, error: mailError(e) };
+  }
 }
 
 function testNotify() {
   if (!prop('NTFY_TOPIC')) throw new Error('Set up notifications first');
   const r = sendNtfy('Exhibitor Leads is connected', 'You will get a message here when a check of ' + NOTIFY_MIN + ' or more exhibitors finishes and you are not in the app.', prop('NTFY_URL'));
-  if (r.code < 200 || r.code >= 300) throw new Error('ntfy did not accept it (' + (r.code || r.error || 'no answer') + ')');
+  if (!r.ok) throw new Error(r.error);
   return { sent: true };
+}
+
+/** Run once from the editor after pasting release 10: Google asks you to let this script send email as you. Safe to run again. */
+function authorise() {
+  Logger.log('Email permission: OK. This script can send ' + MailApp.getRemainingDailyQuota() + ' more emails today.');
 }
 
 /** "Baby & Toddler Show: all 120 checked. 34 can email, 29 to check, 57 need consent. 9 sites wouldn’t open." */
