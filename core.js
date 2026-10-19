@@ -89,15 +89,20 @@
 
   const isGoogle = (row) => !!row && (row.workspace === 'yes' || row.workspace === 'likely');
 
+  /** The app could not read this business's website (it turned the app away, said no to robots, did not answer, or only some pages opened). */
+  const UNREAD_NOTE = /Site asks automated|Website did not|Could not read (?!the exhibitor)/;
+  const isUnread = (row) => !!row && (row.state === 'done' || row.state === 'error') && UNREAD_NOTE.test(String(row.note || ''));
+
   /** The same tallies the Apps Script keeps, worked out here so the screen can update while checks run. */
   function countRows(rows) {
-    const c = { total: 0, done: 0, corporate: 0, consent: 0, check: 0, google: 0, pending: 0, likely: 0 };
+    const c = { total: 0, done: 0, corporate: 0, consent: 0, check: 0, google: 0, pending: 0, likely: 0, unread: 0 };
     (rows || []).forEach((r) => {
       c.total++;
       const st = statusOf(r);
       if (st === 'pending') { c.pending++; return; }
       c.done++; c[st]++;
       if (isGoogle(r)) c.google++;
+      if (isUnread(r)) c.unread++;
       if (r.legal === 'likely') c.likely++;
     });
     return c;
@@ -179,6 +184,7 @@
     { id: 'check', label: 'To check' },
     { id: 'consent', label: 'Consent needed' },
     { id: 'google', label: 'Google Workspace' },
+    { id: 'unread', label: 'Couldn\u2019t read' },
   ];
 
   const rank = (r) => ({ corporate: 0, check: 1, consent: 2, pending: 3 }[statusOf(r)] * 2 + (isGoogle(r) ? 0 : 1));
@@ -188,6 +194,7 @@
     const f = (opts && opts.filter) || 'all', q = String((opts && opts.q) || '').trim().toLowerCase();
     let out = (rows || []).filter((r) => {
       if (f === 'google') return isGoogle(r);
+      if (f === 'unread') return isUnread(r);
       if (f !== 'all' && statusOf(r) !== f) return false;
       return true;
     });
@@ -196,7 +203,7 @@
   }
 
   function filterCount(c, id) {
-    return id === 'all' ? c.total : id === 'google' ? c.google : c[id] || 0;
+    return id === 'all' ? c.total : id === 'google' ? c.google : c[id] || 0;   // 'unread' is worked out on the phone, so a list not opened yet has none
   }
 
   /** The sentence under the exhibition name. */
@@ -427,13 +434,53 @@
   function leadLines(c) {
     if (!c || !c.total) return null;
     const out = [];
+    // a share of the exhibitors checked so far, which is all of them once the checks are done
+    const base = c.done || 0;
+    const [pCorp, pCheck, pConsent] = shares([c.corporate || 0, c.check || 0, c.consent || 0], base);
+    const pGoogle = shares([c.google || 0], base)[0];
     out.push(c.pending ? { n: `${commas(c.done)} of ${commas(c.total)}`, text: 'exhibitors checked so far' } : { n: commas(c.total), text: c.total === 1 ? 'exhibitor, checked' : 'exhibitors, all checked' });
     // `k` ties a line to its colour in the stand plan; the order matches the plan (can email, check, consent)
-    out.push({ n: commas(c.corporate || 0), text: 'can be emailed without asking first', k: 'corporate' });
-    if (c.check) out.push({ n: commas(c.check), text: c.check === 1 ? 'needs a quick check' : 'need a quick check', k: 'check' });
-    if (c.consent) out.push({ n: commas(c.consent), text: c.consent === 1 ? 'needs consent' : 'need consent', k: 'consent' });
-    if (c.done) out.push({ n: commas(c.google || 0), text: c.google === 1 ? 'appears to use Google Workspace' : 'appear to use Google Workspace' });
+    out.push({ n: commas(c.corporate || 0), text: 'can be emailed without asking first', k: 'corporate', pct: pCorp });
+    if (c.check) out.push({ n: commas(c.check), text: c.check === 1 ? 'needs a quick check' : 'need a quick check', k: 'check', pct: pCheck });
+    if (c.consent) out.push({ n: commas(c.consent), text: c.consent === 1 ? 'needs consent' : 'need consent', k: 'consent', pct: pConsent });
+    if (c.done) out.push({ n: commas(c.google || 0), text: c.google === 1 ? 'appears to use Google Workspace' : 'appear to use Google Workspace', pct: pGoogle });
     return out;
+  }
+
+  /**
+   * Whole-number percentages of `base`. When the values together make up the whole base (can email, check and consent do),
+   * they are rounded so that they add up to 100. Anything above zero but under one percent reads "<1%".
+   */
+  function shares(values, base) {
+    if (!base) return values.map(() => '');
+    const raw = values.map((v) => (v / base) * 100);
+    let out = raw.map(Math.round);
+    if (values.reduce((a, b) => a + b, 0) === base) {
+      out = raw.map(Math.floor);
+      let left = 100 - out.reduce((a, b) => a + b, 0);
+      raw.map((x, i) => ({ i, f: x - Math.floor(x) })).sort((a, b) => b.f - a.f || a.i - b.i).forEach((o) => { if (left > 0 && values[o.i] > 0) { out[o.i]++; left--; } });
+    }
+    return values.map((v, i) => (v > 0 && out[i] === 0 ? '<1%' : out[i] + '%'));
+  }
+
+  /** The exhibitions a lead is listed in, its own first: this one and the others the server found it in. */
+  function listedIn(row) {
+    const out = [];
+    [row && row.showId].concat((row && row.alsoIn) || []).forEach((id) => { if (id && out.indexOf(id) < 0) out.push(id); });
+    return out;
+  }
+  const listedCount = (row) => listedIn(row).length;
+
+  /** Sites the app could not read, for Settings, from the script's tally. Null when there is nothing to say. */
+  function reachSummary(rc) {
+    if (!rc || typeof rc !== 'object' || !rc.checked) return null;
+    const n = (k) => Math.max(0, +rc[k] || 0);
+    const lines = [];
+    if (n('turnedAway')) lines.push({ n: n('turnedAway'), text: 'turned the app away (the site answers 403 or similar)' });
+    if (n('robots')) lines.push({ n: n('robots'), text: n('robots') === 1 ? 'asks automated tools to stay away (robots.txt)' : 'ask automated tools to stay away (robots.txt)' });
+    if (n('silent')) lines.push({ n: n('silent'), text: 'did not open or answer' });
+    if (n('partial')) lines.push({ n: n('partial'), text: n('partial') === 1 ? 'opened, but its policy pages did not' : 'opened, but their policy pages did not' });
+    return { sites: n('sites'), checked: n('checked'), pct: shares([n('sites')], n('checked'))[0], lines };
   }
 
   /* ---------- Daily usage (the Today line in Settings, and the warning) ---------- */
@@ -541,7 +588,7 @@
   return {
     esc, plural, dayNum, todayIso, GROUPS, showGroup, groupShows, fmtDates, ago,
     STATUS_LABEL, statusOf, isGoogle, countRows, workspaceShort, workspaceLabel, rowSub, companyTypeLabel, companyUrl, legalLabel, emailRule, emailKindLabel,
-    FILTERS, filterRows, filterCount, summary,
+    FILTERS, filterRows, filterCount, summary, isUnread, shares, listedIn, listedCount, reachSummary,
     SECTOR_PRESETS, cleanSector, matchSector, sectorsFrom, searchLinks,
     validUrl, parseShared, validApiUrl, slug, planGrid, planLabel,
     CSV_COLUMNS, csvCell, toCsv, mergeBySite, usage, sectorOptions, resolveSector, leadLines,

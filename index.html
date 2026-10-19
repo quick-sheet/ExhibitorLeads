@@ -263,6 +263,20 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 .menu button:last-child { border-bottom: 0; }
 .tag { display: inline-block; padding: 3px 10px; border-radius: 12px; background: var(--raise-2); font-size: 13px; font-weight: 500; color: var(--ink-2); margin: 10px 8px 0 0; }
 .tag.corporate { background: var(--sun); color: var(--on-sun); }
+/* How many exhibitions a business is in, copying the company number, and the Companies House picker */
+.ex-main.has-badge { grid-template-columns: 12px 1fr auto 18px; }
+.ex-badge { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px 0 7px; border-radius: 12px; background: var(--raise-2); color: var(--ink-2); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; margin-right: 6px; }
+.ex-badge svg { width: 14px; height: 14px; }
+.leads .pct { color: var(--ink-3); font-size: .86em; margin-left: 2px; font-variant-numeric: tabular-nums; }
+.v-copy { display: flex; align-items: center; gap: 2px; }
+.copy-btn { width: 40px; height: 40px; margin: -8px 0 -8px 2px; display: grid; place-items: center; color: var(--ink-2); border-radius: 50%; flex: none; }
+.copy-btn:active { background: var(--raise-2); }
+.copy-btn svg { width: 19px; height: 19px; }
+.copy-btn.done { color: var(--st-ok); }
+.kv .s + .v { margin-top: 8px; }
+.menu.picks button { padding: 12px 0; }
+.menu.picks button.off { opacity: .75; }
+.ex-note { font-size: 13.5px; color: var(--ink-3); margin: 4px 0 0; }
 .code { display: inline-block; margin-top: 8px; padding: 6px 10px; border-radius: 8px; background: var(--bg); color: var(--ink); font-size: 14px; word-break: break-all; user-select: all; }
 .status-box { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: var(--bg); font-size: 14px; color: var(--ink-2); }
 .status-box p { margin: 2px 0; font-size: 14px; }
@@ -375,7 +389,7 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="core.js?v=7"></script>
+<script src="core.js?v=8"></script>
 <script>
 (() => {
 'use strict';
@@ -448,6 +462,9 @@ const ICON = {
   pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="M13.5 6.5l4 4"/></svg>',
   x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>',
+  copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg>',
+  tick: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>',
+  stack: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 3 9l9 5 9-5-9-5Z"/><path d="M3 14l9 5 9-5"/></svg>',
 };
 
 /* ---------- Talking to the sheet ---------- */
@@ -498,7 +515,7 @@ function setUsage(u) {
 const oldScript = (e) => (/unknown action/i.test(e.message || '') ? 'Your Apps Script needs its new version first. The README says how (Update).' : e.message);
 
 // The release of Apps Script code this app expects. Shown in Settings; a warning appears when the script behind the app is older.
-const EXPECT_BUILD = 7;
+const EXPECT_BUILD = 8;
 
 async function checkBuild() {
   if (!S.api) return;
@@ -547,7 +564,13 @@ function mergeRows(id, changed) {
   if (!changed || !changed.length) return;
   const list = S.rows[id] || (S.rows[id] = []);
   const at = new Map(list.map((r, i) => [r.id, i]));
-  changed.forEach((r) => { if (at.has(r.id)) list[at.get(r.id)] = r; else { at.set(r.id, list.length); list.push(r); } });
+  changed.forEach((r) => {
+    if (at.has(r.id)) {
+      const old = list[at.get(r.id)];
+      if (old && old.alsoIn && !r.alsoIn) r.alsoIn = old.alsoIn;   // a check or an edit does not say which other exhibitions a business is in
+      list[at.get(r.id)] = r;
+    } else { at.set(r.id, list.length); list.push(r); }
+  });
   saveRows(id); syncCounts(id);
 }
 const rowById = (id) => { const l = S.rows[S.route.showId] || []; return l.find((r) => r.id === id); };
@@ -696,7 +719,7 @@ function homeHtml() {
 
 /** "Your leads" with one fact to a line. Falls back to a sentence while there is nothing to count. */
 function leadsHtml(head, c, fallback) {
-  const li = (l) => `<li><i class="lk${l.k ? ' ' + l.k : ''}" aria-hidden="true"></i><span>${l.n ? `<strong class="num">${esc(l.n)}</strong> ` : ''}${esc(l.text)}</span></li>`;
+  const li = (l) => `<li><i class="lk${l.k ? ' ' + l.k : ''}" aria-hidden="true"></i><span>${l.n ? `<strong class="num">${esc(l.n)}</strong>${l.pct ? ` <span class="pct">(${esc(l.pct)})</span>` : ''} ` : ''}${esc(l.text)}</span></li>`;
   const lines = C.leadLines(c);
   if (!lines && !head) return `<p class="story">${esc(fallback)}</p>`;
   return `<ul class="leads">${head ? li(head) : ''}${lines ? lines.map(li).join('') : li({ n: '', text: fallback })}</ul>`;
@@ -800,8 +823,10 @@ function updateShow() {
 function rowHtml(r) {
   const st = C.statusOf(r);
   const who = [r.contact, r.domain].filter(Boolean).join(', ');
-  return `<div class="ex"><button class="ex-main" type="button" data-row="${esc(r.id)}"><span class="dot ${st}"></span>
-    <span class="ex-t"><span class="ex-name">${esc(r.name)}</span><span class="ex-sub">${esc(C.rowSub(r))}</span>${who ? `<span class="ex-sub dim">${esc(who)}</span>` : ''}</span>${ICON.chev}</button></div>`;
+  const n = C.listedCount(r);
+  const badge = n >= 2 ? `<span class="ex-badge" role="img" aria-label="In ${n} exhibitions" title="In ${n} exhibitions">${ICON.stack}${n}</span>` : '';
+  return `<div class="ex"><button class="ex-main${badge ? ' has-badge' : ''}" type="button" data-row="${esc(r.id)}"><span class="dot ${st}"></span>
+    <span class="ex-t"><span class="ex-name">${esc(r.name)}</span><span class="ex-sub">${esc(C.rowSub(r))}</span>${who ? `<span class="ex-sub dim">${esc(who)}</span>` : ''}</span>${badge}${ICON.chev}</button></div>`;
 }
 
 /* ---------- Sheets ---------- */
@@ -834,12 +859,14 @@ function openRow(id) {
   const SURE = { verified: 'Confirmed', likely: 'Likely the same company', possible: 'Possibly the same company' };
   const company = r.companyNo ? [
     kv('Company', esc(r.companyName), [C.companyTypeLabel(r.companyType), r.companyStatus].filter(Boolean).join(', ')),
-    kv('Company number', coUrl ? link(coUrl, r.companyNo) : esc(r.companyNo), r.companyAddr),
+    kv('Company number', `<span class="v-copy"><span>${coUrl ? link(coUrl, r.companyNo) : esc(r.companyNo)}</span><button class="copy-btn" type="button" data-act="copy-text" data-text="${esc(r.companyNo)}" data-what="Company number" aria-label="Copy company number">${ICON.copy}</button></span>`, r.companyAddr),
     kv('How sure', esc(SURE[r.legal] || ''), r.legalSrc),
     kv('Director', esc(r.chDirector), 'From Companies House'),
   ].join('') : kv('Company', 'No company found', r.legalSrc && r.legalSrc !== 'No company found' ? r.legalSrc : '');
+  const others = (r.alsoIn || []).map(showById).filter(Boolean), listed = C.listedCount(r);
+  const alsoIn = others.length ? `<div class="kv"><span class="k">Also in</span>${others.map((o) => `<span class="v">${esc(o.name)}</span><span class="s">${esc([o.start ? C.fmtDates(o.start, o.end) : '', o.sector].filter(Boolean).join(' · '))}</span>`).join('')}</div>` : '';
   openSheet(`${head(r.name)}
-    <span class="tag ${st}">${esc(C.STATUS_LABEL[st])}</span>${done ? `<span class="tag">${esc(C.workspaceShort(r))}</span>` : ''}
+    <span class="tag ${st}">${esc(C.STATUS_LABEL[st])}</span>${done ? `<span class="tag">${esc(C.workspaceShort(r))}</span>` : ''}${listed >= 2 ? `<span class="tag">In ${listed} exhibitions</span>` : ''}
     <p>${esc(C.emailRule(r))}</p>
     ${needsAnswer ? `<div class="actions" style="margin-top:10px"><button class="btn primary" type="button" data-act="match-yes" data-id="${esc(r.id)}">Yes, same company</button><button class="btn" type="button" data-act="match-no" data-id="${esc(r.id)}">No, a different one</button></div>` : ''}
     <h3>Contact</h3>
@@ -850,11 +877,12 @@ function openRow(id) {
     ${!r.email && !r.phone && !r.contact && !r.website ? '<p class="small">Nothing found yet. Edit the details to add what you know.</p>' : ''}
     <h3>Company</h3>
     ${company}
-    <div class="actions" style="margin-top:10px"><button class="btn" type="button" data-act="company-no" data-id="${esc(r.id)}">Enter company number</button></div>
+    <div class="actions" style="margin-top:10px"><button class="btn" type="button" data-act="find-co" data-id="${esc(r.id)}">Find on Companies House</button><button class="btn" type="button" data-act="company-no" data-id="${esc(r.id)}">Enter company number</button></div>
     <h3>Email setup</h3>
     ${kv('Provider', esc(C.workspaceLabel(r)))}
     <h3>At the show</h3>
     ${kv('Exhibition', esc(s.name || ''), s.start ? C.fmtDates(s.start, s.end) : '')}
+    ${alsoIn}
     ${kv('Stand', esc(r.stand))}${kv('Category', esc(r.category))}${kv('About', esc(r.blurb))}${kv('Notes', esc(r.note))}
     <div class="actions"><button class="btn primary" type="button" data-act="edit-row" data-id="${esc(r.id)}">Edit details</button>
     <button class="btn" type="button" data-act="recheck" data-id="${esc(r.id)}">Check again</button>
@@ -899,6 +927,42 @@ function openEditRow(id) {
       <p class="hint">Changing the website or email starts the checks again for this business.</p>
       <div class="actions"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-act="back-to-row" data-id="${esc(r.id)}">Cancel</button></div>
     </form>`);
+}
+
+/* Find on Companies House: search by name (or number), see the matches, choose one and confirm it */
+const nice = (t) => { t = String(t || '').replace(/-/g, ' '); return t.charAt(0).toUpperCase() + t.slice(1); };
+
+function pickListHtml() {
+  const p = S.pick || {};
+  if (p.err) return `<p class="hint">${esc(p.err)}</p>`;
+  if (!p.items) return '';
+  if (!p.items.length) return '<p class="hint">Nothing found. Try fewer words, or the company number.</p>';
+  return `<div class="menu picks">${p.items.map((c, i) => `<button type="button" data-act="pick-co" data-i="${i}"${c.status && c.status !== 'active' ? ' class="off"' : ''}>${esc(c.name)}<small>${esc([nice(c.status), c.no, C.companyTypeLabel(c.type)].filter(Boolean).join(' · '))}</small>${c.addr ? `<small>${esc(c.addr)}</small>` : ''}</button>`).join('')}</div>`;
+}
+
+function openPicker(id, keep) {
+  const r = rowById(id) || {};
+  const q = keep ? keep.q : (r.companyName || r.name || '');
+  S.pick = { id, q, items: keep ? keep.items : null, err: '' };
+  openSheet(`${head('Find on Companies House')}
+    <p class="small">${esc(r.name || '')}. Type the company name, or paste its number, then choose the right one.</p>
+    <form id="pickForm" data-id="${esc(id)}" novalidate>
+      <div class="field-row"><input class="field" id="pickQ" name="q" value="${esc(q)}" placeholder="Company name or number" autocomplete="off" autocapitalize="characters" enterkeyhint="search" maxlength="120" aria-label="Company name or number"><button class="btn primary" type="submit">Search</button></div>
+    </form>
+    <div id="pickList" aria-live="polite">${pickListHtml()}</div>
+    <div class="actions"><button class="btn" type="button" data-act="back-to-row" data-id="${esc(id)}">Back</button></div>`);
+}
+
+function openPickConfirm(i) {
+  const p = S.pick || {}, c = (p.items || [])[i], r = rowById(p.id) || {};
+  if (!c) return;
+  const live = !c.status || c.status === 'active';
+  openSheet(`${head('Use this company?')}
+    <p>${esc(r.name || 'This business')} will be set to the company below and marked as confirmed by you.</p>
+    ${kv('Company', esc(c.name), [C.companyTypeLabel(c.type), nice(c.status)].filter(Boolean).join(', '))}
+    ${kv('Company number', esc(c.no), c.addr)}
+    ${live ? '' : '<p class="hint">This company is not active on the register, so the lead stays “to check” rather than “can email”.</p>'}
+    <div class="actions"><button class="btn primary" type="button" data-act="pick-yes" data-i="${i}">Yes, use this company</button><button class="btn" type="button" data-act="pick-back">Back to the results</button></div>`);
 }
 
 function openCompanyNo(id) {
@@ -995,6 +1059,12 @@ function insightHtml() {
     h += `<h3>How companies were matched</h3><div class="ev">${ev.rows.map((r) => `<div class="ev-row"><span class="dot ${r.tone}"></span><span>${esc(r.label)}</span><b>${r.n.toLocaleString('en-GB')}</b></div>`).join('')}</div>
       <p class="hint">Across ${ev.total.toLocaleString('en-GB')} checked businesses. A number, an exact legal name or a matching postcode on its own website counts as confirmed. A similar name alone stays “to check”. Open any business and tap Why this result? to see what was read.</p>`;
   }
+  const rs = C.reachSummary(st.reach);
+  if (rs && rs.sites) {
+    h += `<h3>Websites that would not open</h3><p><strong>${rs.sites.toLocaleString('en-GB')}</strong> of ${rs.checked.toLocaleString('en-GB')} checked websites (${esc(rs.pct)}) could not be read in full.</p>
+      <div class="ev">${rs.lines.map((l) => `<div class="ev-row"><span class="dot check"></span><span>${esc(l.text)}</span><b>${l.n.toLocaleString('en-GB')}</b></div>`).join('')}</div>
+      <p class="hint">Those businesses stay “to check” unless a company can be matched another way. In an exhibition, the Couldn’t read filter lists them, and Find on Companies House lets you pick the company yourself. The app never tries to get round a site that turns it away.</p>`;
+  } else if (rs) h += `<h3>Websites that would not open</h3><p>None. Every one of the ${rs.checked.toLocaleString('en-GB')} websites checked so far could be read.</p>`;
   if (sp) {
     h += `<h3>Speed</h3><p>Each business takes about <strong>${esc(sp.per)}</strong> and ${esc(sp.requests)} web requests (last ${sp.n}), so roughly ${esc(sp.perHour)} an hour.</p>
       ${sp.parts.map((q) => `<div class="sp-row"><div class="use-row"><span>${esc(q.label)}</span><b>${esc(q.text)}</b></div><div class="bar" role="img" aria-label="${esc(q.label)}: ${esc(q.text)}"><i style="width:${q.width}%"></i></div></div>`).join('')}
@@ -1316,6 +1386,24 @@ async function act(name, t) {
       break;
     }
     case 'company-no': openCompanyNo(d.id); break;
+    case 'find-co': openPicker(d.id); break;
+    case 'pick-co': openPickConfirm(+d.i); break;
+    case 'pick-back': if (S.pick) openPicker(S.pick.id, S.pick); break;
+    case 'pick-yes': {
+      const p = S.pick || {}, c = (p.items || [])[+d.i];
+      if (!c) break;
+      await withBusy(t, async () => {
+        try { const j = await call('confirmMatch', { id: p.id, number: c.no }); mergeRows(S.route.showId, [j.row]); updateShow(); openRow(p.id); toast('Company confirmed'); }
+        catch (e) { toast(e.message); }
+      });
+      break;
+    }
+    case 'copy-text': {
+      const ok = await copyText(d.text || '');
+      toast(ok ? `${d.what || 'Text'} copied` : 'Could not copy. Press and hold the number to select it');
+      if (ok) { t.classList.add('done'); t.innerHTML = ICON.tick; setTimeout(() => { if (t.isConnected) { t.classList.remove('done'); t.innerHTML = ICON.copy; } }, 1400); }
+      break;
+    }
     case 'back-to-row': openRow(d.id); break;
     case 'explain-row': {
       await withBusy(t, async () => {
@@ -1415,6 +1503,17 @@ document.addEventListener('submit', async (e) => {
         const j = await call('confirmMatch', { id: f.dataset.id, number: f.number.value });
         mergeRows(S.route.showId, [j.row]); updateShow(); openRow(f.dataset.id); toast('Company confirmed');
       } catch (err) { toast(err.message); }
+    });
+  } else if (f.id === 'pickForm') {
+    const q = f.q.value.trim();
+    if (q.length < 2) { toast('Type at least two letters, or the company number'); return; }
+    S.pick = { id: f.dataset.id, q, items: null, err: '' };
+    const mine = S.pick;
+    await withBusy(f.querySelector('[type=submit]'), async () => {
+      try { const j = await call('searchCompanies', { q }, 30000); mine.items = j.items || []; }
+      catch (err) { mine.err = oldScript(err); }
+      const box = $('#pickList');
+      if (box && S.pick === mine && $('#pickForm')) box.innerHTML = pickListHtml();
     });
   } else if (f.id === 'searchForm') { /* search happens as you type */ }
 });

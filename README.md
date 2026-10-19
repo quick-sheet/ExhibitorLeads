@@ -53,7 +53,16 @@ This is a guide, not legal advice.
 2. Wait about a minute.
 3. Fully close the app and reopen it. If it still looks the same, close and reopen once more.
 
-**Release 7 (Apps Script release 7).** After deploying the new `Code.gs`, open **Settings**: the box under the connection form says **Apps Script release: 7, up to date**. If it says older, the new version was not deployed (see the last paragraph below), and the app also shows a warning on the main screen until it is.
+**Release 8 (Apps Script release 8).** After deploying the new `Code.gs`, open **Settings**: the box under the connection form says **Apps Script release: 8, up to date**. If it says older, the new version was not deployed (see the last paragraph below), and the app also shows a warning on the main screen until it is.
+
+What release 8 adds:
+
+- **The same exhibitor in more than one exhibition.** If a business with the same name (ignoring Ltd, The and punctuation) is already checked under another exhibition in the same sector, the new one takes that result at once, with no web requests, and its note says which exhibition it came from. A different website means a different business, so those are checked on their own. A confirmed company is always reused. A weaker result is reused only by a business not checked yet, so **Check again** and the “to check” recheck always do their own reading.
+- **A badge with a count** on any exhibitor listed in two or more exhibitions (the same website anywhere, or the same name within the sector). The detail screen lists the other exhibitions.
+- **Percentages** on the lead lines (can email, quick check, consent, Google Workspace): a share of the exhibitors checked so far, which is all of them once the checks finish.
+- **A copy icon** beside the company number.
+- **Find on Companies House** on the detail screen: type a name or paste a number, see up to eight matches with their status and address, tap one and confirm. It is saved as confirmed by you, the same as entering a number.
+- **Couldn’t read.** A filter on each exhibition for businesses whose website would not open (it turned the app away, asked bots to stay out, did not answer, or only some pages opened), and a tally in Settings under **Websites that would not open**. The app never tries to get round a site that turns it away: for those, use **Find on Companies House**.
 
 Open any checked business and tap **Why this result?** It runs the check again without saving anything and lists every page it read, what each gave (company numbers, legal names, postcodes), which pages it could not read and why (a site that turns requests away, or a `robots.txt` that asks bots to stay out), what Companies House said, and the result. **Copy** puts that text on the clipboard so it can be pasted into a message. If the fresh result differs from the saved one, it says so, and **Check again** keeps the new one.
 
@@ -89,7 +98,7 @@ Each release bumps two markers together: `core.js?v=N` in `index.html` and the c
 - Sole traders are not on the Companies House register, so they cannot be confirmed and stay as consent needed.
 - Eight colour themes are in Settings: four dark (Harbour, Graphite, Forest, Aubergine) and four light (Porcelain, Stone, Sage, Sky). Harbour is the default. Every theme keeps its text at a readable contrast.
 - The **plus**, **pencil** and **download** icons beside a sector's name add an exhibition, rename the sector (changing all its exhibitions at once) and download its CSV. Choose a name that already exists to join two sectors together.
-- **Your leads** on the home, sector and exhibition screens lists one fact per line, including how many appear to use Google Workspace.
+- **Your leads** on the home, sector and exhibition screens lists one fact per line, including how many appear to use Google Workspace. Each line also gives its share of the exhibitors checked so far.
 - Three colours mean the same thing everywhere (the stand plan, the lines under it, the filter pills and the dots beside each exhibitor): green is *can email* (a confirmed limited company), amber is *to check* and rose is *consent needed*. An outlined square is not checked yet. The colours are tuned for each theme and kept apart in lightness as well as hue, so they still tell apart for colour-blind viewers.
 - On an exhibition screen, the **download** icon beside the name saves the whole list as a CSV. To save only what a filter or search is showing, use the menu (the three dots).
 - The mail check looks at public MX records. "Probably Google" means Google sits behind a mail filter.

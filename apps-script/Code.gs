@@ -14,7 +14,7 @@
 
 const VERSION = 1;
 // Which release of this code is live. The app shows it in Settings and warns when it is older than the app expects.
-const BUILD = 7;
+const BUILD = 8;
 const TZ = 'Europe/London';
 const UA = 'ExhibitorLeads/1 (personal prospecting tool; Google Apps Script)';
 const MAX_BODY = 600000;
@@ -74,7 +74,7 @@ function doPost(e) {
 function json(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 
 function route(action, p) {
-  const routes = { ping, status, list, saveShow, deleteShow, loadShow, pasteList, rows, enrich, confirmMatch, confirmLikely, editRow, recheck, recheckWeak, deleteRows, explain };
+  const routes = { ping, status, list, saveShow, deleteShow, loadShow, pasteList, rows, enrich, confirmMatch, confirmLikely, editRow, recheck, recheckWeak, deleteRows, explain, searchCompanies };
   p = p || {};
   try {
     if (action === 'ping') return { ok: true, v: VERSION, build: BUILD };
@@ -967,7 +967,9 @@ function pageWhy(pg, ctx) {
 function pathOf(u) { const p = parseUrl(u); return p ? (p.path || '/') : String(u || ''); }
 const kb = (n) => (n >= 1000 ? Math.round(n / 1000) + ' KB' : n + ' bytes');
 
-function newCtx() { return { robots: {}, mail: {}, donors: null, pages: {} }; }
+function newCtx() { return { robots: {}, mail: {}, donors: null, names: null, shows: null, pages: {} }; }
+/** One line for the trace, from outside enrichOne's own helpers. */
+function say0(ctx, line) { if (ctx.why && ctx.why.length < 70) ctx.why.push(clip(line, 400)); }
 
 /* ---------- Mail records (DNS over HTTPS) ---------- */
 
@@ -1104,22 +1106,74 @@ const COPY_FROM_DONOR = ['email', 'emailKind', 'emailSrc', 'contact', 'contactSr
 /** A finished row can stand in for another exhibitor on the same website, but only when it was properly read. */
 function usableDonor(r) {
   return r.state === 'done' && r.domain && r.enrichedAt && r.legal === 'verified' && /^(Company number|Legal name|Registered postcode) on its website/.test(r.legalSrc) &&
-    !/not read|asks automated|did not respond|No website|Same website/i.test(r.note);
+    !/not read|asks automated|did not respond|No website|Same website|Same exhibitor/i.test(r.note);
+}
+
+const COPY_COMPANY = ['legal', 'legalSrc', 'emailable', 'workspace', 'mailHost', 'companyNo', 'companyName', 'companyType', 'companyStatus', 'companyAddr', 'chDirector'];
+const REUSED = /^Same (website|exhibitor)/;
+
+/** Copies a finished lead's results onto this one. The company and what follows from it always come across as a set; email and contact only fill gaps. */
+function applyDonor(ex, donor, patch) {
+  COPY_FROM_DONOR.forEach((k) => { if (COPY_COMPANY.indexOf(k) >= 0 || !ex[k]) patch[k] = donor[k]; });
+  if (!ex.phone && donor.phone) { patch.phone = donor.phone; patch.phoneSrc = donor.phoneSrc; }
+}
+
+/** Same business in another exhibition of the same sector: the key is the sector plus the name without Ltd, The and punctuation. */
+function nameKeyFor(ctx, r) {
+  const s = ctx.shows && ctx.shows[r.showId];
+  const k = normKey(r.name);
+  return s && k.length >= 3 ? String(s.sector || '').toLowerCase() + '|' + k : '';
 }
 
 function registerDonor(ctx, r) {
-  if (!ctx.donors || !usableDonor(r)) return;
-  const old = ctx.donors[r.domain];
-  if (!old || old.enrichedAt < r.enrichedAt) ctx.donors[r.domain] = r;
+  if (!ctx.donors) return;
+  if (usableDonor(r)) {
+    const old = ctx.donors[r.domain];
+    if (!old || old.enrichedAt < r.enrichedAt) ctx.donors[r.domain] = r;
+  }
+  if (ctx.names && r.state === 'done' && r.enrichedAt && r.legal) {
+    const k = nameKeyFor(ctx, r);
+    if (k) {
+      const list = ctx.names[k] = (ctx.names[k] || []).filter((x) => x.id !== r.id);
+      list.push(r);
+    }
+  }
+}
+
+/** Reads the sheet once for this run, so finished leads can stand in for others. */
+function loadDonors(ctx) {
+  if (ctx.donors && ctx.names) return;
+  ctx.donors = ctx.donors || {};
+  ctx.names = {};
+  ctx.shows = {};
+  readTab('Shows', SHOW_COLS).forEach((s) => { ctx.shows[s.id] = s; });
+  readTab('Exhibitors', EX_COLS).forEach((r) => registerDonor(ctx, r));
 }
 
 function donorFor(domain, selfId, ctx) {
-  if (!ctx.donors) {
-    ctx.donors = {};
-    readTab('Exhibitors', EX_COLS).forEach((r) => registerDonor(ctx, r));
-  }
+  loadDonors(ctx);
   const d = ctx.donors[domain];
   return d && d.id !== selfId ? d : null;
+}
+
+/**
+ * The same exhibitor already checked under another exhibition in this sector. The websites must not differ (a different
+ * website means a different business that happens to share a name). A properly confirmed company is always borrowed; a weaker
+ * result only by a lead that has not been checked yet, so rechecking never settles for someone else's weak answer.
+ */
+function nameDonorFor(ex, ctx) {
+  loadDonors(ctx);
+  const list = ctx.names[nameKeyFor(ctx, ex)];
+  if (!list) return null;
+  const dom = siteDomain(ex.website);
+  let best = null, bestRank = -1;
+  list.forEach((d) => {
+    if (d.id === ex.id || (dom && d.domain && dom !== d.domain)) return;
+    if (d.legal !== 'verified' && ex.legal) return;
+    const rank = (d.legal === 'verified' ? 4 : 0) + (REUSED.test(d.note) ? 0 : 2) + (d.domain ? 1 : 0);
+    if (rank > bestRank || (rank === bestRank && d.enrichedAt > best.enrichedAt)) { best = d; bestRank = rank; }
+  });
+  return best;
 }
 
 function enrichOne(ex, ctx) {
@@ -1130,6 +1184,25 @@ function enrichOne(ex, ctx) {
   const why = ctx.why = [];   // what this check read and decided, in plain words (shown by "Why this result?")
   _pre = {};
   _cat = 'detail';
+
+  // 0. The same exhibitor (same name, same sector, no different website) already checked under another exhibition: reuse it,
+  //    without a single web request. A lead you confirmed yourself, or one already confirmed, is left to its own check.
+  if (ex.legalSrc !== 'Confirmed by you' && ex.legal !== 'verified') {
+    const nd = nameDonorFor(ex, ctx);
+    const dom0 = siteDomain(ex.website);
+    // a website we already know that has been read properly is the better evidence than a weak result under the same name
+    if (nd && !(nd.legal !== 'verified' && dom0 && donorFor(dom0, ex.id, ctx))) {
+      const patch0 = {};
+      applyDonor(ex, nd, patch0);
+      if (!ex.website && nd.website) { patch0.website = nd.website; patch0.domain = nd.domain; }
+      const showName = (ctx.shows[nd.showId] || {}).name || 'another exhibition';
+      const was = nd.legal === 'verified' ? '' : String(nd.note || '').replace(/^Same (website|exhibitor)[^.]*(\.\s*|$)/, '');
+      patch0.state = 'done'; patch0.enrichedAt = nowIso();
+      patch0.note = clip('Same exhibitor as in ' + showName + ', so its results were reused' + (was ? '. ' + was : ''), 240);
+      say0(ctx, 'Same name and sector as the lead in ' + showName + (nd.legal === 'verified' ? ', which is confirmed' : ', not yet confirmed') + ': results reused, no pages read');
+      return patch0;
+    }
+  }
 
   // 1. Some directories only link to a page per exhibitor: read it to find the website.
   if (!site && ex.detailUrl) {
@@ -1149,8 +1222,7 @@ function enrichOne(ex, ctx) {
   // 2. Same website already checked (another stand, or another show): reuse it.
   const donor = domain ? donorFor(domain, ex.id, ctx) : null;
   if (donor && ex.legalSrc !== 'Confirmed by you') {
-    COPY_FROM_DONOR.forEach((k) => { if (!ex[k] || k === 'legal' || k === 'emailable' || k === 'workspace' || k === 'mailHost') patch[k] = donor[k]; });
-    if (!ex.phone && donor.phone) { patch.phone = donor.phone; patch.phoneSrc = donor.phoneSrc; }
+    applyDonor(ex, donor, patch);
     patch.state = 'done'; patch.enrichedAt = nowIso(); patch.note = 'Same website as another exhibitor, so its results were reused';
     return patch;
   }
@@ -1472,6 +1544,24 @@ function evidenceInfo(rows) {
   return e;
 }
 
+/**
+ * Sites the app could not read, worked out from the notes the checks left: turned away (403 and the like), robots.txt says no,
+ * no answer, or only some pages. Counted by website, so a site shared by several exhibitors counts once.
+ */
+function reachInfo(rows) {
+  const kind = {}, checked = {};
+  rows.forEach((r) => {
+    if ((r.state !== 'done' && r.state !== 'error') || !r.domain) return;
+    checked[r.domain] = 1;
+    const n = String(r.note || '');
+    const k = /Website did not open \((403|406|429|430|5\d\d)\)/.test(n) ? 1 : /Site asks automated/.test(n) ? 2 : /Website did not/.test(n) ? 3 : /Could not read (?!the exhibitor)/.test(n) ? 4 : 0;
+    if (k && (!kind[r.domain] || k < kind[r.domain])) kind[r.domain] = k;
+  });
+  const out = { checked: Object.keys(checked).length, sites: 0, turnedAway: 0, robots: 0, silent: 0, partial: 0 };
+  Object.keys(kind).forEach((d) => { out.sites++; out[['', 'turnedAway', 'robots', 'silent', 'partial'][kind[d]]]++; });
+  return out;
+}
+
 /** A recheck in progress: where it started and where the same group of leads stands now. */
 function recheckInfo(rows) {
   let rc = null;
@@ -1518,7 +1608,7 @@ function explain(p) {
   const r = readTab('Exhibitors', EX_COLS).find((x) => x.id === p.id);
   if (!r) throw new Error('Not found');
   const ctx = newCtx();
-  ctx.donors = {};                       // never borrow another row's result: this shows what the pages say
+  ctx.donors = {}; ctx.names = {}; ctx.shows = {};   // never borrow another row's result: this shows what the pages say
   ctx.until = Date.now() + EX_MS;
   _T = {}; _slow = { ms: 0, host: '' }; _cat = 'web';
   const t0 = Date.now();
@@ -1536,7 +1626,7 @@ function status() {
   let trigger = false;
   try { trigger = ScriptApp.getProjectTriggers().some((t) => t.getHandlerFunction() === 'enrichTick'); } catch (e) { trigger = false; }
   const rows = readTab('Exhibitors', EX_COLS);
-  return { ok: true, v: VERSION, build: BUILD, ch: !!prop('CH_KEY'), trigger, sheetUrl: db().getUrl(), usage: usageInfo(), speed: speedInfo(), evidence: evidenceInfo(rows), recheck: recheckInfo(rows) };
+  return { ok: true, v: VERSION, build: BUILD, ch: !!prop('CH_KEY'), trigger, sheetUrl: db().getUrl(), usage: usageInfo(), speed: speedInfo(), evidence: evidenceInfo(rows), recheck: recheckInfo(rows), reach: reachInfo(rows) };
 }
 
 function list() {
@@ -1666,6 +1756,29 @@ function pasteList(p) {
   return Object.assign(res, { status: 'loaded' });
 }
 
+/**
+ * For each exhibitor, the other exhibitions it is already listed in: the same website anywhere, or the same name within the
+ * same sector (unless the two have different websites). Returns a function from a row to a list of exhibition ids.
+ */
+function alsoInFinder(all, shows) {
+  const sector = {};
+  shows.forEach((s) => { sector[s.id] = String(s.sector || '').toLowerCase(); });
+  const byDomain = {}, byName = {};
+  const nameKey = (r) => { const k = normKey(r.name); return sector[r.showId] != null && k.length >= 3 ? sector[r.showId] + '|' + k : ''; };
+  all.forEach((r) => {
+    if (sector[r.showId] == null) return;
+    if (r.domain) (byDomain[r.domain] = byDomain[r.domain] || []).push(r);
+    const k = nameKey(r);
+    if (k) (byName[k] = byName[k] || []).push(r);
+  });
+  return (r) => {
+    const set = {};
+    (r.domain ? byDomain[r.domain] || [] : []).forEach((o) => { if (o.showId !== r.showId) set[o.showId] = 1; });
+    (byName[nameKey(r)] || []).forEach((o) => { if (o.showId !== r.showId && !(r.domain && o.domain && r.domain !== o.domain)) set[o.showId] = 1; });
+    return Object.keys(set);
+  };
+}
+
 function rows(p) {
   const shows = readTab('Shows', SHOW_COLS);
   let ids;
@@ -1674,7 +1787,9 @@ function rows(p) {
   else throw new Error('Say which exhibition or sector');
   const set = {};
   ids.forEach((i) => { set[i] = 1; });
-  return { rows: readTab('Exhibitors', EX_COLS).filter((r) => set[r.showId]).map(pubEx) };
+  const all = readTab('Exhibitors', EX_COLS);
+  const also = alsoInFinder(all, shows);
+  return { rows: all.filter((r) => set[r.showId]).map((r) => { const o = pubEx(r); const a = also(r); if (a.length) o.alsoIn = a; return o; }) };
 }
 
 /**
@@ -1816,6 +1931,21 @@ function confirmMatch(p) {
     writeObj('Exhibitors', EX_COLS, r);
     return { row: pubEx(r) };
   });
+}
+
+/** Companies House search for the "Find on Companies House" picker: a name or a pasted company number, up to 8 matches. */
+function searchCompanies(p) {
+  if (!prop('CH_KEY')) throw new Error('Companies House is not set up yet. Add the key in Script Properties');
+  const q = clip(p.q, 120).trim();
+  if (q.length < 2) throw new Error('Type at least two letters of the company name, or its number');
+  const num = q.replace(/\s+/g, '').toUpperCase();
+  if (/^((SC|NI|OC|SO|NC|LP|SL|FC|SE|SA|NF|NL|GE|IP|SP|RC)\d{6}|\d{6,8})$/.test(num)) {
+    const co = chProfile(/^\d+$/.test(num) ? ('00000000' + num).slice(-8) : num);   // a number pasted without its leading zeros still finds it
+    if (co) return { items: [co], byNumber: true };
+  }
+  const r = chGet(chSearchPath(q));
+  if (r.code !== 200 || !r.json) throw new Error('Companies House search answered ' + r.code);
+  return { items: (r.json.items || []).slice(0, 8).map(chShape) };
 }
 
 function confirmLikely(p) {
