@@ -14,7 +14,7 @@
 
 const VERSION = 1;
 // Which release of this code is live. The app shows it in Settings and warns when it is older than the app expects.
-const BUILD = 11;
+const BUILD = 12;
 const TZ = 'Europe/London';
 const UA = 'ExhibitorLeads/1 (personal prospecting tool; Google Apps Script)';
 const MAX_BODY = 600000;
@@ -81,7 +81,6 @@ function route(action, p) {
     if (!routes[action]) return { error: 'Unknown action' };
     if (!prop('TOKEN')) return { error: 'Not set up yet. In Apps Script, choose setup and press Run.' };
     if (typeof p.token !== 'string' || !safeEq(p.token, prop('TOKEN'))) { Utilities.sleep(700); return { error: 'Unauthorised' }; }
-    touchSeen();   // the app is open and talking to us: no notification needed for what finishes now
     const out = routes[action](p);
     noteUsage(0);
     return out;
@@ -106,7 +105,7 @@ function setup() {
 /** Runs every 10 minutes: carries on checking exhibitors while no phone is open. */
 function enrichTick() {
   const t0 = Date.now();
-  try { enrichRun({ budget: TICK_BUDGET, tick: true }); } catch (err) { Logger.log('enrichTick: ' + err); }
+  try { enrichRun({ budget: TICK_BUDGET }); } catch (err) { Logger.log('enrichTick: ' + err); }
   noteUsage((Date.now() - t0) / 1000);
 }
 
@@ -1499,7 +1498,7 @@ function pubEx(r) { const o = {}; EX_COLS.forEach((c) => { if (c !== 'detailUrl'
 
 function ping() { return { ok: true, v: VERSION, build: BUILD }; }
 
-/* ---------- Notifications through ntfy: a message on the phone when a big check has finished and you are not in the app ----------
+/* ---------- Notifications through ntfy: a message on the phone every time a check finishes ----------
  * The message goes to ntfy by email, to ntfy-<your code>@ntfy.sh: ntfy makes the subject the title and the body the message.
  * It is not sent to ntfy's web address. ntfy.sh limits web requests per sending address, and Google's servers share their
  * addresses with a great many other scripts, so a web request from here is nearly always turned away (HTTP 429).
@@ -1507,12 +1506,6 @@ function ping() { return { ok: true, v: VERSION, build: BUILD }; }
  * so the link to the exhibition goes in the message text. */
 
 const NTFY_MAIL = 'ntfy.sh';
-const AWAY_MS = 150000;   // no call from the app for this long: you are not looking at it
-const NOTIFY_MIN = 5;     // a job of fewer exhibitors than this finishes without a message
-const DEFER_MS = 30 * 60000;   // a job the background run finished while you were still about waits this long for you to leave
-
-function touchSeen() { try { CacheService.getScriptCache().put('seen', String(Date.now()), 21600); } catch (e) { /* best effort */ } }
-function awayNow() { try { return Date.now() - (+CacheService.getScriptCache().get('seen') || 0) > AWAY_MS; } catch (e) { return true; } }
 
 function notifyInfo() {
   const t = prop('NTFY_TOPIC'), o = { on: !!t, topic: t, click: !!prop('NTFY_URL') };
@@ -1535,7 +1528,7 @@ function cleanAppUrl(u) {
 /** Stores the notification code (the ntfy topic) the phone subscribed to, or switches notifications off. */
 function setNotify(p) {
   const props = PropertiesService.getScriptProperties();
-  if (p.off) { props.deleteProperty('NTFY_TOPIC'); props.deleteProperty('NTFY_URL'); props.deleteProperty('JOBS'); props.deleteProperty('NTFY_LAST'); return notifyInfo(); }
+  if (p.off) { props.deleteProperty('NTFY_TOPIC'); props.deleteProperty('NTFY_URL'); props.deleteProperty('JOBS'); props.deleteProperty('NTFY_SIG'); props.deleteProperty('NTFY_LAST'); return notifyInfo(); }
   const topic = String(p.topic || '').trim();
   if (!/^[A-Za-z0-9_-]{12,64}$/.test(topic)) throw new Error('That notification code does not look right');
   setProp('NTFY_TOPIC', topic);
@@ -1568,7 +1561,7 @@ function sendNtfy(title, message, link) {
 
 function testNotify() {
   if (!prop('NTFY_TOPIC')) throw new Error('Set up notifications first');
-  const r = sendNtfy('Exhibitor Leads is connected', 'You will get a message here when a check of ' + NOTIFY_MIN + ' or more exhibitors finishes and you are not in the app.', prop('NTFY_URL'));
+  const r = sendNtfy('Exhibitor Leads is connected', 'You will get a message here every time a check finishes.', prop('NTFY_URL'));
   noteNotify('test', '', r);
   if (!r.ok) throw new Error(r.error);
   return { sent: true };
@@ -1589,53 +1582,39 @@ function finishedMessage(show, rows) {
 }
 
 /**
- * Called at the end of every run with how many exhibitors it finished in each exhibition, and whether it was the background run.
- * Keeps a running count of the job (everything finished since the exhibition last had nothing waiting). When nothing is waiting
- * any more, a job of NOTIFY_MIN or more sends one message, but only if you are away.
- *  - You are away (the app has been quiet): the message goes now.
- *  - The app itself finished it: you were watching, so nothing is sent.
- *  - The background run finished it while the app had only just gone quiet: the job waits (DEFER_MS) and the message goes at
- *    the next background run, if you are away by then. Without this, leaving just before the end meant no message at all.
+ * Called at the end of every run with how many exhibitors it finished in each exhibition. When an exhibition has nothing left
+ * waiting, one message goes out: whether or not you are in the app, and however many exhibitors the check covered (one lead
+ * checked again included). A check that takes several runs says nothing until the last one. Two runs that finish the same
+ * check at the same moment send one message between them: the exhibition's latest check time says which finish this is.
  */
-function notifyFinished(doneBy, viaTick) {
+function notifyFinished(doneBy) {
   try {
     if (!prop('NTFY_TOPIC')) return;
-    doneBy = doneBy || {};
-    const ids = Object.keys(doneBy), recorded = prop('JOBS');
-    if (!ids.length && (!recorded || recorded === '{}')) return;
+    const ids = Object.keys(doneBy || {});
+    if (!ids.length) return;
     const rows = readTab('Exhibitors', EX_COLS), shows = readTab('Shows', SHOW_COLS);
-    const away = awayNow(), send = [];
-    const waiting = (list) => list.some((r) => r.state === 'todo' || r.state === '' || r.state === 'working');
+    const send = [];
     withLock(() => {
-      let jobs = {};
-      try { jobs = JSON.parse(prop('JOBS') || '{}') || {}; } catch (e) { jobs = {}; }
-      const now = Date.now();
-      Object.keys(jobs).forEach((k) => { const j = jobs[k]; if (!j || now - j.at > (j.done ? DEFER_MS : 6 * 3600000)) delete jobs[k]; });   // never finished, or waited too long
+      let sig = {};
+      try { sig = JSON.parse(prop('NTFY_SIG') || '{}') || {}; } catch (e) { sig = {}; }
+      Object.keys(sig).forEach((k) => { if (!shows.some((x) => x.id === k)) delete sig[k]; });   // exhibitions that are gone
       ids.forEach((id) => {
-        let j = jobs[id];
-        if (!j || j.done) j = { n: 0 };   // new work after a finished job is a new job
-        j.n += doneBy[id]; j.at = now; delete j.done; jobs[id] = j;
         const mine = rows.filter((r) => r.showId === id), show = shows.find((x) => x.id === id);
-        if (!show || waiting(mine)) return;   // still some to do
-        if (j.n < NOTIFY_MIN) { delete jobs[id]; return; }
-        if (away) { delete jobs[id]; send.push({ show, rows: mine }); }
-        else if (viaTick) j.done = true;   // you only just left: wait for the next background run
-        else delete jobs[id];   // you watched the app finish it
+        if (!show || !mine.length || mine.some((r) => r.state === 'todo' || r.state === '' || r.state === 'working')) return;   // still some to do
+        const stamp = mine.reduce((m, r) => (String(r.enrichedAt || '') > m ? String(r.enrichedAt) : m), '') + '|' + mine.length;
+        if (sig[id] === stamp) return;   // another run already sent the message for this finish
+        sig[id] = stamp; send.push({ show, rows: mine });
       });
-      Object.keys(jobs).forEach((k) => {   // jobs that finished earlier and have been waiting for you to leave
-        const j = jobs[k];
-        if (!j.done || ids.indexOf(k) >= 0) return;
-        const mine = rows.filter((r) => r.showId === k), show = shows.find((x) => x.id === k);
-        if (!show || waiting(mine)) { delete jobs[k]; return; }   // gone, or checking again: that is a new job
-        if (away) { delete jobs[k]; send.push({ show, rows: mine }); }
-      });
-      setProp('JOBS', JSON.stringify(jobs));
+      setProp('NTFY_SIG', JSON.stringify(sig));
     });
     send.forEach((x) => {
       const base = prop('NTFY_URL');
       noteNotify('finished', x.show.name, sendNtfy('Checks finished', finishedMessage(x.show, x.rows), base ? base + '#show=' + x.show.id : ''));
     });
-  } catch (e) { Logger.log('notify: ' + e); }
+  } catch (e) {
+    Logger.log('notify: ' + e);
+    noteNotify('finished', '', { ok: false, error: 'The message could not be put together (' + clip(String((e && e.message) || e), 80) + ')' });
+  }
 }
 
 /* ---------- What the checks have been doing: speed, evidence and rechecks (shown in Settings) ---------- */
@@ -2039,7 +2018,7 @@ function enrichRun(p) {
     }
     const doneBy = {};
     changed.concat(skipped).forEach((x) => { doneBy[x.showId] = (doneBy[x.showId] || 0) + 1; });
-    notifyFinished(doneBy, !!p.tick);
+    notifyFinished(doneBy);
     noteTiming(log, sheetMs);
     noteUsage(0);
   }
@@ -2047,7 +2026,7 @@ function enrichRun(p) {
   return { processed, errors, pending: pendingCount(showId), changed, usage: usageInfo() };
 }
 
-function enrich(p) { return enrichRun(Object.assign({}, p, { tick: false })); }   // from the app: never the background run
+function enrich(p) { return enrichRun(p); }
 
 function directorOf(r) { return r.contact || (r.legal === 'verified' ? r.chDirector : '') || ''; }
 

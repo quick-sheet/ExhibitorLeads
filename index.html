@@ -401,7 +401,7 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
 <div class="toast" id="toast" role="status" popover="manual"></div>
 
-<script src="core.js?v=11"></script>
+<script src="core.js?v=12"></script>
 <script>
 (() => {
 'use strict';
@@ -534,7 +534,7 @@ function setUsage(u) {
 const oldScript = (e) => (/unknown action/i.test(e.message || '') ? 'Your Apps Script needs its new version first. The README says how (Update).' : e.message);
 
 // The release of Apps Script code this app expects. Shown in Settings; a warning appears when the script behind the app is older.
-const EXPECT_BUILD = 11;
+const EXPECT_BUILD = 12;
 
 async function checkBuild() {
   if (!S.api) return;
@@ -1058,7 +1058,7 @@ function statusBox() {
     <p>Background checks: ${st.trigger ? 'on, every 10 minutes' : '<strong>off</strong>. Run setup again in Apps Script'}</p></div>`;
 }
 
-/* ---------- Notifications: a message in the ntfy app when a big check finishes and you are not in this app ---------- */
+/* ---------- Notifications: a message in the ntfy app every time a check finishes, whether or not you are in the app ---------- */
 const NTFY_PLAY = 'https://play.google.com/store/apps/details?id=io.heckel.ntfy', NTFY_APPSTORE = 'https://apps.apple.com/app/ntfy/id1625396347';
 const appUrl = () => new URL('./', location.href).href;
 const randomBytes = (n) => crypto.getRandomValues(new Uint8Array(n));
@@ -1068,11 +1068,11 @@ function notifyHtml() {
   if (!S.api || !st) return '<div id="notifyBox"></div>';
   const n = st.notify;
   let h = '<div id="notifyBox"><h3>Notifications</h3>';
-  if (!n) h += '<p class="hint">These need release 10 of the Apps Script. Deploy the new version first.</p>';
-  else if (n.on) h += `<p>On. You get a message in the ntfy app when a check of 5 or more exhibitors finishes and you are not in this app. It can take up to a minute to arrive.${isIOS ? ' On iPhone, open Exhibitor Leads from your Home Screen.' : ' Tap the link in the message to open that exhibition.'}</p>
+  if (!n) h += '<p class="hint">These need release 12 of the Apps Script. Deploy the new version first.</p>';
+  else if (n.on) h += `<p>On. You get a message in the ntfy app every time a check finishes, whether or not you are in this app, even for a single exhibitor. It can take up to a minute to arrive.${isIOS ? ' On iPhone, open Exhibitor Leads from your Home Screen.' : ' Tap the link in the message to open that exhibition.'}</p>
       <div class="actions"><button class="btn" type="button" data-act="notify-test">Send test notification</button><button class="btn" type="button" data-act="notify-setup">Setup steps</button><button class="btn" type="button" data-act="notify-off">Turn off</button></div>
       <p class="notify-result${n.last && !n.last.ok ? ' bad' : ''}" role="status">${esc(lastNotifyLine(n.last))}</p>`;
-  else h += `<p>Get a message on your phone when a big check finishes while you are away from the app. It uses ntfy, a free notification app with no account.</p>
+  else h += `<p>Get a message on your phone every time a check finishes, whether or not you are in the app. It uses ntfy, a free notification app with no account.</p>
       <div class="actions"><button class="btn primary" type="button" data-act="notify-setup">Set up notifications</button></div>`;
   return h + '</div>';
 }
@@ -1093,7 +1093,7 @@ async function openNotifySetup() {
     <li><strong>Connect it to Exhibitor Leads</strong><a class="btn" href="${esc(deep)}">Connect ntfy</a><span class="small" style="display:block;margin-top:6px">Or copy the code and subscribe by hand: <span class="code">${esc(topic)}</span></span></li>
     ${isAndroid ? '<li><strong>Turn on instant delivery</strong>In ntfy, open Exhibitor Leads, tap the ⋮ menu and enable instant delivery. Without it, messages can arrive late.</li>' : ''}`;
   openSheet(`${head('Get notifications')}
-    <p>When a check of 5 or more exhibitors finishes and you are not in the app, ntfy tells you how many can be emailed. Nothing is sent while you are watching it finish.</p>
+    <p>Every time a check finishes, whether or not you are in the app, ntfy tells you how many can be emailed. Even one exhibitor checked again sends a message.</p>
     <ol class="steps">${steps}</ol>
     <div class="actions"><button class="btn primary" type="button" data-act="settings">Done</button><button class="btn" type="button" data-act="notify-test">Send test notification</button></div>
     <p class="notify-result" role="status"></p>`);
