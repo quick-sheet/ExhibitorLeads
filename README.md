@@ -2,7 +2,7 @@
 
 Find who exhibits at UK shows and who you can email.
 
-A personal prospecting tool that installs on your phone. Type a sector, find the shows, load each exhibitor list, and it works out for every exhibitor the website, phone, email, contact name, whether it is a limited company (so you can email it without asking first), and whether its email runs on Google Workspace. Download a CSV per exhibition or per sector.
+A personal prospecting tool that installs on your phone. Type a sector, find the shows, load each exhibitor list, and it works out for every exhibitor the website, phone, email, contact name, whether it is a limited company (so you can email it without asking first), whether its email runs on Google Workspace or Microsoft 365 (the two easy ways to sign in to an AppSheet app), and what other services it has set up for its domain. Download a CSV per exhibition or per sector.
 
 Live at `https://quick-sheet.github.io/ExhibitorLeads/`. The page holds no data. Everything is kept in a Google Sheet in your own account, behind a small Apps Script.
 
@@ -45,7 +45,9 @@ If a show's site does not allow automated reading, or the list cannot be read, u
 - **Consent needed:** no limited company confirmed. Could be a sole trader or a partnership, which need consent first.
 - **To check:** a similar company name exists, but it is not confirmed, or the company is not active. Confirm it in the exhibitor's detail.
 
-The company number is looked for in this order: on the exhibitor's own pages (home page, footer, terms and privacy pages), checked against Companies House and against the company name shown beside it; then the same page of the company register by name. A number found on the site is only accepted when it exists on Companies House and, if several numbers appear, the registered name also appears on the page. Irish and charity numbers are ignored.
+The company number is looked for in this order: on the exhibitor's own pages (home page, footer, terms, privacy and contact pages, and Shopify's business details page), checked against Companies House and against the company name shown beside it; then the same page of the company register by name. A number found on the site is only accepted when it exists on Companies House and, if several numbers appear, the registered name also appears on the page. Irish and charity numbers are ignored.
+
+A lead also counts as confirmed when its own pages name the company behind it (“We are X Ltd”, “a trading name of Y Ltd”, “© 2026 Y Ltd”) and Companies House has exactly that name, or when a company with a matching name is backed by a second piece of evidence: its registered postcode on the site, one of its directors named on the site, as the contact or in an email address, or a director's postcode on the site. A matching name on its own is never enough.
 
 This is a guide, not legal advice.
 
@@ -54,6 +56,41 @@ This is a guide, not legal advice.
 1. **Add file, Upload files**, choose the changed files (same names replace the old ones), then **Commit changes**.
 2. Open the **Actions** tab and wait for **Deploy to Pages** to show a green tick (usually under a minute). Opening `sw.js` on the live address should show the new `exhibitorleads-vN` name.
 3. Fully close the app and reopen it. If it still looks the same, close and reopen once more.
+
+**Release 13 (Apps Script release 13).** Microsoft 365 gets its own count line and filter, each lead shows which other services its business uses, and the company check confirms more companies by itself.
+
+1. Paste the new `Code.gs` over the old one and save. You do not need to run `authorise` or `setup` again.
+2. **Deploy, Manage deployments**, the pencil, **New version**, **Deploy**.
+3. Upload `index.html`, `core.js`, `sw.js` and `README.md` and commit. Wait for the green tick in **Actions**, then fully close and reopen the app. Settings should say **Apps Script release: 13, up to date**.
+
+The first time it runs, the new Apps Script adds a column called `alsoUses` to the end of the **Exhibitors** tab of your sheet. Leave it where it is.
+
+What release 13 changes:
+
+- **Microsoft 365** sits next to Google Workspace: a line under **Your leads** (“2 appear to use Microsoft 365”), a **Microsoft 365** filter, and a “Microsoft 365” label on each lead. In each status, Google Workspace leads come first, then Microsoft 365, then the rest. Leads already checked show up straight away, because the mail host was already recorded.
+- **Behind a mail filter.** A business whose email passes through a filter such as Mimecast or Proofpoint used to show only “Mail filter”. If its domain records name Microsoft (its SPF record, or Microsoft's `MS=` verification), it now shows “Probably Microsoft 365”, the same way Google behind a filter shows “Probably Google”. This needs a fresh check of the lead.
+- **Apple iCloud.** A business using its own domain with iCloud Mail shows “Apple iCloud” instead of “Other”.
+- **Also uses** (under **Email setup** on each lead, and a CSV column after **Mail host**): the other services a business has set up for its domain. It looks for Microsoft 365, Google Workspace, Apple, Dropbox, Salesforce and Smartsheet (the other ways to sign in to AppSheet), and HubSpot, Atlassian and Zendesk. It finds them in the domain's DNS records: a company account usually leaves a verification record behind, and services that send email for the business are named in its SPF record.
+  - Finding one is a good sign that the company uses it. Not finding one means nothing, because most small firms never verify their domain. It shows that the company uses the service, not that every person has an account on their work address.
+  - Box is not listed, because its records could not be confirmed.
+  - Leads already checked get it the next time they are checked (**Check again** on a lead, **Check the “to check” again**, or **Check everything again** in an exhibition's menu). New checks get it straight away. It costs one more lookup per business, made at the same time as the first page, well within the daily limit.
+- **More companies confirmed without you.** A “to check” lead is usually a company with the same or a similar name on Companies House and nothing else to back it. The check now looks for that second piece of evidence:
+  - **A director on its website.** The company's current directors are fetched, and a director's full name on its pages (an About page, say), as its contact, or in an email address such as jane.smith@ confirms it: “Director named on its website: Jane Rivers”. A first name or a surname alone does not count.
+  - **A director's postcode.** Small firms often use their accountant's address as the registered office, so that postcode is rarely on their site. A director's correspondence postcode often is the trading address, so it counts too.
+  - **The company behind the brand.** “Little Sprout is a trading name of Greenfield Family Trading Ltd”, “Northwind Retail Ltd t/a Kite & Co”, “this website is operated by Y Ltd” and the copyright line “© 2026 Y Ltd” now count even when the company name is nothing like the brand, if Companies House has exactly that name. Payment providers, couriers, platforms, web designers and photographers named this way are ignored.
+  - **More pages and data.** Its contact page is read as well (it often gives the address and the people behind it), Shopify shops' Contact information page is tried, and a legal name or a labelled company number in the page's structured data is used.
+  - **Other names it goes by.** When its listed name finds nothing that can be confirmed, Companies House is also searched for the name its website gives itself, numbers written as words (“3 Little Birds” as “Three Little Birds”), the name without words like Shop or Boutique, and its web address split into words. A company found this way still needs its own evidence, and the lead says how it was found: “… (found by searching “Mama Bear Slings”)”.
+  - These only ever confirm a company. A lead with nothing new to back it stays exactly as it was. Open any lead and tap **Why this result?** to see each step, including which directors were looked for.
+- **Safeguards against confirming the wrong company.** Before this release went out, the new rules were tested against the ways they could go wrong, and these checks were added (some also tighten older rules):
+  - **Franchises and branches.** If the listed name adds a place the company name does not have (“Baby Sensory Surrey” against BABY SENSORY LIMITED), or its site says it is a franchise or independently owned, a match by name, director or postcode is left as “to check”. Its note starts “May be a franchise or branch”, and Settings counts these on their own line. A company number on its own pages still stands, unless both signs are there. Two exhibitors on one website with different places in their names no longer share a result.
+  - **Shared addresses.** A postcode where many companies are registered (formation agents and virtual offices, such as 160 City Road EC1V 2NX) proves nothing. The app asks Companies House how many companies are registered at a postcode before counting it.
+  - **Statements about someone else.** “X is a trading name of Y Ltd” counts only when X is the exhibitor's own name, website name or web address, and never next to finance, credit or insurance wording, so a lender, courier or brand it stocks is not taken. A copyright line counts only at the foot of the page, and never for a photographer, designer, review widget or licensed character.
+  - **Directors.** A director's name must appear in a sentence that says they started, own or run it (“founded by”, “I'm”, “meet”), so a customer review signed with the same name does not count. The business's own name is never read as a person (“Lily Rose Designs”), and only email addresses on its own domain count. The company's name must be at least a close match (prefix or exact).
+  - **Exact means exact.** “Bear and Bow Ltd” no longer matches BEAR BOW LTD; if two records share a name the app does not guess; template text such as “Your Company Ltd” is ignored; “limited edition” is not a company; and charity, FCA and ICO numbers are never taken for company numbers.
+  - **Marketplaces and social pages.** An Etsy, notonthehighstreet, Amazon, eBay, Linktree, Instagram or Facebook address is not read as the business's own website.
+  - **To apply them to leads already checked**, start with one exhibition: its menu, **Check the “to check” again**. Then, if you like the result, **Settings**, **Check them all again** (or **Include consent needed** to look at those too). Settings shows the counts before and after, and **How companies were matched** shows how many were confirmed each new way.
+  - Each “to check” lead may now take up to six more Companies House requests (directors of up to three companies, up to two more searches, and a postcode count). Companies House allows 600 requests every five minutes; if it asks the app to slow down, the extra steps are skipped for that lead rather than failing it.
+  - Rechecking can also move a lead the other way: a lead that was confirmed only by a name on a franchise class's site, or by a virtual office postcode, becomes “to check”. That is the safer answer.
 
 **Release 12 (Apps Script release 12).** A message every time a check finishes, whether or not you are in the app, and for any number of exhibitors.
 

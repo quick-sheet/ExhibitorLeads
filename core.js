@@ -88,6 +88,8 @@
   }
 
   const isGoogle = (row) => !!row && (row.workspace === 'yes' || row.workspace === 'likely');
+  /** Microsoft 365 mailboxes: the second easy way to sign in to an AppSheet app, after Google. */
+  const isMicrosoft = (row) => !!row && !isGoogle(row) && /^Microsoft 365/.test(String(row.mailHost || ''));
 
   /** The app could not read this business's website (it turned the app away, said no to robots, did not answer, or only some pages opened). */
   const UNREAD_NOTE = /Site asks automated|Website did not|Could not read (?!the exhibitor)/;
@@ -95,13 +97,14 @@
 
   /** The same tallies the Apps Script keeps, worked out here so the screen can update while checks run. */
   function countRows(rows) {
-    const c = { total: 0, done: 0, corporate: 0, consent: 0, check: 0, google: 0, pending: 0, likely: 0, unread: 0 };
+    const c = { total: 0, done: 0, corporate: 0, consent: 0, check: 0, google: 0, microsoft: 0, pending: 0, likely: 0, unread: 0 };
     (rows || []).forEach((r) => {
       c.total++;
       const st = statusOf(r);
       if (st === 'pending') { c.pending++; return; }
       c.done++; c[st]++;
       if (isGoogle(r)) c.google++;
+      else if (isMicrosoft(r)) c.microsoft++;
       if (isUnread(r)) c.unread++;
       if (r.legal === 'likely') c.likely++;
     });
@@ -110,6 +113,8 @@
 
   function workspaceShort(row) {
     if (statusOf(row) === 'pending') return '';
+    if (isMicrosoft(row)) return /behind/.test(row.mailHost) ? 'Probably Microsoft 365' : 'Microsoft 365';
+    if (row.mailHost === 'Apple iCloud') return 'Apple iCloud';
     return row.workspace === 'yes' ? 'Google Workspace' : row.workspace === 'likely' ? 'Probably Google' : row.workspace === 'no' ? 'Not Google' : 'Mail not known';
   }
 
@@ -118,6 +123,8 @@
     const host = row.mailHost ? ` (${row.mailHost})` : '';
     if (row.workspace === 'yes') return 'Uses Google Workspace';
     if (row.workspace === 'likely') return 'Probably Google Workspace, behind a mail filter';
+    if (isMicrosoft(row)) return /behind/.test(row.mailHost) ? 'Probably Microsoft 365, behind a mail filter' : 'Uses Microsoft 365';
+    if (row.mailHost === 'Apple iCloud') return 'Uses Apple iCloud Mail';
     if (row.workspace === 'no') return row.mailHost ? `Not Google: ${row.mailHost}` : 'Not Google';
     return 'Could not tell' + host;
   }
@@ -184,16 +191,18 @@
     { id: 'check', label: 'To check' },
     { id: 'consent', label: 'Consent needed' },
     { id: 'google', label: 'Google Workspace' },
+    { id: 'microsoft', label: 'Microsoft 365' },
     { id: 'unread', label: 'Couldn\u2019t read' },
   ];
 
-  const rank = (r) => ({ corporate: 0, check: 1, consent: 2, pending: 3 }[statusOf(r)] * 2 + (isGoogle(r) ? 0 : 1));
+  const rank = (r) => ({ corporate: 0, check: 1, consent: 2, pending: 3 }[statusOf(r)] * 3 + (isGoogle(r) ? 0 : isMicrosoft(r) ? 1 : 2));
 
-  /** Filter, search and order. The best prospects (can email, then Google Workspace) come first. */
+  /** Filter, search and order. The best prospects (can email, then Google Workspace, then Microsoft 365) come first. */
   function filterRows(rows, opts) {
     const f = (opts && opts.filter) || 'all', q = String((opts && opts.q) || '').trim().toLowerCase();
     let out = (rows || []).filter((r) => {
-      if (f === 'google') return isGoogle(r);
+      if (f === 'google') return isGoogle(r) && statusOf(r) !== 'pending';   // the same leads the count shows
+      if (f === 'microsoft') return isMicrosoft(r) && statusOf(r) !== 'pending';
       if (f === 'unread') return isUnread(r);
       if (f !== 'all' && statusOf(r) !== f) return false;
       return true;
@@ -203,7 +212,7 @@
   }
 
   function filterCount(c, id) {
-    return id === 'all' ? c.total : id === 'google' ? c.google : c[id] || 0;   // 'unread' is worked out on the phone, so a list not opened yet has none
+    return id === 'all' ? c.total : c[id] || 0;   // 'unread' is worked out on the phone, so a list not opened yet has none
   }
 
   /** The sentence under the exhibition name. */
@@ -223,6 +232,7 @@
     if (c.check) parts.push(`${c.check} ${c.check === 1 ? 'needs' : 'need'} a quick check`);
     if (parts.length) s += ` ${parts.join(' and ')}.`;
     if (c.google) s += ` ${c.google} ${c.google === 1 ? 'appears' : 'appear'} to use Google Workspace.`;
+    if (c.microsoft) s += ` ${c.microsoft} ${c.microsoft === 1 ? 'appears' : 'appear'} to use Microsoft 365.`;
     return s;
   }
 
@@ -371,7 +381,7 @@
   /* ---------- CSV ---------- */
 
   const CSV_COLUMNS = ['Business', 'Website', 'Contact name', 'Contact source', 'Email', 'Email type', 'Phone', 'Can email without consent',
-    'Company match', 'Company name', 'Company number', 'Company status', 'Companies House page', 'Google Workspace', 'Mail host', 'Exhibition', 'Sector', 'Stand', 'Category', 'Notes'];
+    'Company match', 'Company name', 'Company number', 'Company status', 'Companies House page', 'Google Workspace', 'Mail host', 'Also uses', 'Exhibition', 'Sector', 'Stand', 'Category', 'Notes'];
 
   function csvCell(v) {
     let s = String(v == null ? '' : v).replace(/\r\n|\r|\n/g, ' ').trim();
@@ -391,7 +401,7 @@
       const cells = [
         r.name, r.website, r.contact, r.contact ? r.contactSrc : '', r.email, emailKindLabel(r.emailKind), r.phone, CAN_TXT[st],
         done ? MATCH_TXT[r.legal] || '' : '', r.companyName, r.companyNo, r.companyStatus, companyUrl(r.companyNo),
-        done ? WS_TXT[r.workspace] || 'Unknown' : '', r.mailHost,
+        done ? WS_TXT[r.workspace] || 'Unknown' : '', r.mailHost, done ? r.alsoUses : '',
         r._shows ? r._shows.join('; ') : show.name, r._sector || show.sector, r.stand, r.category, [r.note, r._also && r._also.length ? 'Also listed as ' + r._also.join('; ') : ''].filter(Boolean).join('. '),
       ];
       lines.push(cells.map(csvCell).join(','));
@@ -437,13 +447,14 @@
     // a share of the exhibitors checked so far, which is all of them once the checks are done
     const base = c.done || 0;
     const [pCorp, pCheck, pConsent] = shares([c.corporate || 0, c.check || 0, c.consent || 0], base);
-    const pGoogle = shares([c.google || 0], base)[0];
+    const [pGoogle, pMicrosoft] = shares([c.google || 0, c.microsoft || 0], base);
     out.push(c.pending ? { n: `${commas(c.done)} of ${commas(c.total)}`, text: 'exhibitors checked so far' } : { n: commas(c.total), text: c.total === 1 ? 'exhibitor, checked' : 'exhibitors, all checked' });
     // `k` ties a line to its colour in the stand plan; the order matches the plan (can email, check, consent)
     out.push({ n: commas(c.corporate || 0), text: 'can be emailed without asking first', k: 'corporate', pct: pCorp });
     if (c.check) out.push({ n: commas(c.check), text: c.check === 1 ? 'needs a quick check' : 'need a quick check', k: 'check', pct: pCheck });
     if (c.consent) out.push({ n: commas(c.consent), text: c.consent === 1 ? 'needs consent' : 'need consent', k: 'consent', pct: pConsent });
     if (c.done) out.push({ n: commas(c.google || 0), text: c.google === 1 ? 'appears to use Google Workspace' : 'appear to use Google Workspace', pct: pGoogle });
+    if (c.done) out.push({ n: commas(c.microsoft || 0), text: c.microsoft === 1 ? 'appears to use Microsoft 365' : 'appear to use Microsoft 365', pct: pMicrosoft });
     return out;
   }
 
@@ -527,14 +538,18 @@
 
   /* ---------- Settings: how company matches were made, how fast checks run, a recheck in progress ---------- */
 
-  // In the order of how much each can be trusted. The first four count as confirmed, the next two are left for you to decide.
+  // In the order of how much each can be trusted. The first seven count as confirmed, the next four are left for you to decide.
   const EVIDENCE = [
     ['number', 'Company number on its website', 'corporate'],
     ['name', 'Legal name on its website', 'corporate'],
+    ['owner', 'Company behind the brand on its website', 'corporate'],
     ['postcode', 'Registered postcode on its website', 'corporate'],
+    ['director', 'A director named on its website, as its contact or in its email', 'corporate'],
+    ['dirpost', 'A director\u2019s postcode on its website', 'corporate'],
     ['you', 'Confirmed by you', 'corporate'],
     ['same', 'Same name on Companies House', 'check'],
     ['conflict', 'Same name, but its website names another company', 'check'],
+    ['branch', 'May be a franchise or branch of the company named', 'check'],
     ['similar', 'Similar name on Companies House', 'check'],
     ['none', 'No company found', 'consent'],
   ];
@@ -598,7 +613,7 @@
 
   return {
     esc, plural, dayNum, todayIso, GROUPS, showGroup, groupShows, fmtDates, ago,
-    STATUS_LABEL, statusOf, isGoogle, countRows, workspaceShort, workspaceLabel, rowSub, companyTypeLabel, companyUrl, legalLabel, emailRule, emailKindLabel,
+    STATUS_LABEL, statusOf, isGoogle, isMicrosoft, countRows, workspaceShort, workspaceLabel, rowSub, companyTypeLabel, companyUrl, legalLabel, emailRule, emailKindLabel,
     FILTERS, filterRows, filterCount, summary, isUnread, shares, listedIn, listedCount, reachSummary, makeTopic, showFromHash,
     SECTOR_PRESETS, cleanSector, matchSector, sectorsFrom, searchLinks,
     validUrl, parseShared, validApiUrl, slug, planGrid, planLabel,

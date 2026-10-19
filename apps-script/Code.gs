@@ -14,7 +14,7 @@
 
 const VERSION = 1;
 // Which release of this code is live. The app shows it in Settings and warns when it is older than the app expects.
-const BUILD = 12;
+const BUILD = 13;
 const TZ = 'Europe/London';
 const UA = 'ExhibitorLeads/1 (personal prospecting tool; Google Apps Script)';
 const MAX_BODY = 600000;
@@ -39,7 +39,8 @@ const PAGE_PAIR = 2;   // pages of one website read together
 const LEGAL_GUESSES = ['/privacy-policy', '/terms-and-conditions', '/terms-of-use', '/terms', '/privacy', '/legal'];
 // Shop and site builders put their legal pages in the same few places, so once the home page shows which one a site uses these are worth a try.
 const PLATFORM_GUESSES = {
-  shopify: ['/policies/terms-of-service', '/policies/privacy-policy', '/pages/terms-and-conditions', '/pages/privacy-policy', '/pages/terms-conditions', '/pages/terms'],
+  // contact-information is Shopify's own page for a shop's business details (company number, VAT, address); legal-notice is its imprint page
+  shopify: ['/policies/terms-of-service', '/policies/contact-information', '/policies/privacy-policy', '/policies/legal-notice', '/pages/terms-and-conditions', '/pages/privacy-policy', '/pages/terms-conditions', '/pages/terms'],
   wordpress: ['/terms-and-conditions/', '/terms-conditions/', '/privacy-policy/', '/terms-of-use/', '/terms/'],
   wix: ['/terms-conditions', '/terms-and-conditions', '/privacy-policy'],
   squarespace: ['/terms-and-conditions', '/terms', '/privacy-policy'],
@@ -50,9 +51,12 @@ const SHOW_COLS = ['id', 'name', 'sector', 'start', 'end', 'urls', 'status', 'st
 const EX_COLS = ['id', 'showId', 'name', 'stand', 'category', 'blurb', 'website', 'domain', 'detailUrl',
   'phone', 'phoneSrc', 'email', 'emailKind', 'emailSrc', 'contact', 'contactSrc', 'chDirector',
   'companyNo', 'companyName', 'companyType', 'companyStatus', 'companyAddr',
-  'legal', 'legalSrc', 'emailable', 'workspace', 'mailHost', 'state', 'note', 'addedAt', 'enrichedAt'];
+  'legal', 'legalSrc', 'emailable', 'workspace', 'mailHost', 'state', 'note', 'addedAt', 'enrichedAt',
+  'alsoUses'];   // new columns go on the end, so sheets made by an older release keep their layout (see ensureCols)
 const EDITABLE = ['name', 'website', 'phone', 'email', 'contact', 'note'];
 
+// A shop on a marketplace or a social profile is not the business's own website: its pages name the platform, not the business.
+const MARKET_HOSTS = /(^|\.)(etsy\.com|notonthehighstreet\.com|folksy\.com|amazon\.[a-z.]+|ebay\.[a-z.]+|onbuy\.com|depop\.com|vinted\.[a-z.]+|faire\.com|wolfandbadger\.com|trouva\.com|linktr\.ee|linkin\.bio|beacons\.ai|bio\.link|facebook\.com|fb\.com|instagram\.com|tiktok\.com|twitter\.com|x\.com|youtube\.com|linkedin\.com|pinterest\.[a-z.]+)$/i;
 const REDIRECTORS = ['share.google', 'g.co', 'goo.gl', 'bit.ly', 't.co', 'tinyurl.com', 'ow.ly', 'buff.ly', 'lnkd.in', 'is.gd'];
 const SKIP_HOSTS = /(^|\.)(facebook\.com|fb\.com|fb\.me|instagram\.com|twitter\.com|x\.com|tiktok\.com|youtube\.com|youtu\.be|linkedin\.com|pinterest\.[a-z.]+|wa\.me|whatsapp\.com|threads\.net|snapchat\.com|vimeo\.com|google\.[a-z.]+|goo\.gl|apple\.com|gstatic\.com|googletagmanager\.com|googleapis\.com|seetickets\.com|eventbrite\.[a-z.]+|ticketmaster\.[a-z.]+|bit\.ly|wixsite\.com)$/i;
 const FREEMAIL = /^(gmail\.com|googlemail\.com|hotmail\.com|hotmail\.co\.uk|outlook\.com|outlook\.co\.uk|live\.com|live\.co\.uk|msn\.com|yahoo\.com|yahoo\.co\.uk|ymail\.com|icloud\.com|me\.com|aol\.com|btinternet\.com|btopenworld\.com|sky\.com|talktalk\.net|virginmedia\.com|ntlworld\.com|blueyonder\.co\.uk|protonmail\.com|proton\.me)$/i;
@@ -426,6 +430,7 @@ function extractCompanyNumbers(text) {
     let m;
     while ((m = re.exec(t))) {
       if (/\bvat\b/i.test(t.slice(Math.max(0, m.index - 14), m.index + 4))) continue;   // a VAT number is not a company number
+      if (/(charit|\bfca\b|financial conduct|firm reference|\bfrn\b|\bico\b|data protection)/i.test(t.slice(Math.max(0, m.index - 30), m.index + 4).split(/[.;]\s/).pop())) continue;   // nor a charity, FCA or ICO number in the same sentence
       let n = m[1].toUpperCase();
       if (/^\d{7}$/.test(n)) n = '0' + n;
       hits.push({ i: m.index, n });
@@ -446,20 +451,25 @@ function extractCompanyNumber(text) { return extractCompanyNumbers(text)[0] || '
  * the other companies a policy mentions (payment providers, platforms, advisers).
  */
 const NAME_JOINERS = /^(and|of|the|to|for|in|on|at|by|co|&|&amp;)$/i;
+// A company name ends Ltd, LTD, Limited, LIMITED, LLP, PLC or plc: "limited edition prints" is not a company.
+const CO_SUFFIX = /^(Ltd|LTD|Limited|LIMITED|LLP|PLC|Plc|plc)[.,;:)\]'"\u2019\u201d]*$/;
+// Template text left in place ("[Company Name] Ltd", "Your Company Ltd"): never a real company.
+const PLACEHOLDER_NAME = /\b(company name|your company|yourcompany|business name|insert|example|lorem)\b/i;
+const NOT_AFTER_SUFFIX = /^(edition|editions|offer|offers|stock|time|run|range|release|releases|availability|quantity|quantities|number|numbers|space|spaces|places)\b/i;
 function legalNameStatements(text, exName) {
   const keys = normKey(exName).split(' ').filter(Boolean);
   if (!keys.length) return [];
   const anchor = keys.slice(0, keys[0].length < 3 && keys.length > 1 ? 2 : 1);
   const words = String(text || '').split(/\s+/).filter(Boolean);
   const bare = (w) => w.toLowerCase().replace(/[^a-z0-9]+/g, '');
-  const isSuffix = (w) => /^(ltd|limited|llp|plc)[.,;:)\]]*$/i.test(w);
+  const isSuffix = (w, next) => CO_SUFFIX.test(w) && !NOT_AFTER_SUFFIX.test(next || '');
   const out = [], seen = {};
   for (let i = 0; i + anchor.length <= words.length && out.length < 3; i++) {
     if (!anchor.every((k, j) => bare(words[i + j]) === k)) continue;
     const from = i + anchor.length;
     for (let j = from; j < Math.min(words.length, from + 6); j++) {
       const w = words[j];
-      if (isSuffix(w)) {
+      if (isSuffix(w, words[j + 1])) {
         const name = words.slice(i, j + 1).join(' ').replace(/[.,;:)\]]+$/, '').replace(/^[(\["'\u2018\u201c]+/, '');
         const key = normKey(name);
         if (key && !seen[key]) { seen[key] = 1; out.push(name); }
@@ -509,9 +519,10 @@ function verifyCandidates(cands, name, say) {
     if (onPage || close) return p;
     if (!first) first = p;
   }
-  if (cands.length === 1 && first) tell('The only number on its pages, and it exists on the register, so it is taken');
+  if (cands.length === 1 && first && cands[0].sd) tell('The only number, but from its structured data and under a name that does not fit, so it is not taken');
+  else if (cands.length === 1 && first) tell('The only number on its pages, and it exists on the register, so it is taken');
   else if (cands.length > 1 && !first) tell('Several numbers and none of them names this business, so none is taken');
-  return cands.length === 1 ? first : null;
+  return cands.length === 1 && !cands[0].sd ? first : null;   // a lone number from structured data needs the name to fit as well
 }
 
 function personFromNode(n) {
@@ -551,7 +562,7 @@ function findLinks(html, base) {
     const full = p.scheme + '://' + p.host + p.path;
     if (!contact && /contact|get[- ]in[- ]touch|enquir/.test(hay) && !/\.(pdf|jpg|png)$/.test(p.path)) contact = full;
     if (/\.(pdf|jpe?g|png|gif|svg|webp)$/.test(p.path)) return;
-    if (/terms|privacy|conditions|legal|imprint|company[- ]info|registered/.test(hay)) { if (core.length < 6 && core.indexOf(full) < 0) core.push(full); }
+    if (/terms|privacy|conditions|legal|imprint|company[- ]info|registered|contact-information|legal-notice/.test(hay)) { if (core.length < 6 && core.indexOf(full) < 0) core.push(full); }
     else if (/about|delivery|returns|cookie|policies/.test(hay)) { if (more.length < 4 && more.indexOf(full) < 0) more.push(full); }
   });
   return { contact, legal: core.concat(more), core: core.length };
@@ -569,8 +580,328 @@ function detectPlatform(html) {
 
 function scanPage(html, url) {
   const text = stripTags(html);
+  const sd = structuredCompany(html);
   const numbers = extractCompanyNumbers(text);
-  return { emails: extractEmails(html), phones: extractPhones(html), number: numbers[0] || '', numbers, postcodes: extractPostcodes(text), text, person: extractPerson(html), links: findLinks(html, url), textLen: text.length, platform: detectPlatform(html) };
+  return { emails: extractEmails(html), phones: extractPhones(html), number: numbers[0] || '', numbers, postcodes: extractPostcodes(text), text, person: extractPerson(html), links: findLinks(html, url), textLen: text.length, platform: detectPlatform(html),
+    dataNames: sd.names, dataNumbers: sd.numbers.filter((n) => numbers.indexOf(n) < 0), siteName: siteNameOf(html) };
+}
+
+/* ---------- More ways to confirm the company (release 13) ---------- */
+
+/** "12345678", "1234567" (padded) or "SC123456" from structured data, or nothing. */
+function ukCompanyNo(v) {
+  const s = String(v == null ? '' : v).replace(/\s+/g, '').toUpperCase();
+  if (/^(SC|NI|OC|SO|NC|LP|SL)\d{6}$/.test(s) || /^\d{8}$/.test(s)) return s;
+  return /^\d{7}$/.test(s) ? '0' + s : '';
+}
+
+/**
+ * What the page's structured data says about the business: a legalName ending Ltd, Limited, LLP or PLC, and a company number
+ * only where it is labelled as one (an identifier whose name says company or registration), never any other number.
+ */
+function structuredCompany(html) {
+  const out = { names: [], numbers: [] };
+  const visit = (n, depth) => {
+    if (!n || typeof n !== 'object' || depth > 4) return;
+    if (Array.isArray(n)) { n.forEach((x) => visit(x, depth + 1)); return; }
+    if (n['@graph']) visit(n['@graph'], depth + 1);
+    const ln = typeof n.legalName === 'string' ? n.legalName.replace(/\s+/g, ' ').trim() : '';
+    if (ln && ln.length <= 120 && /\b(ltd|limited|llp|plc)\.?$/i.test(ln) && out.names.indexOf(ln) < 0) out.names.push(ln);
+    [].concat(n.identifier || []).forEach((x) => {
+      const label = String((x && (x.propertyID || x.name)) || '');
+      if (x && typeof x === 'object' && /compan/i.test(label) && !/charit|fca|frn|financial|vat|tax|lei/i.test(label)) { const k = ukCompanyNo(x.value); if (k && out.numbers.indexOf(k) < 0) out.numbers.push(k); }
+    });
+    [n.companyNumber, n.companyRegistrationNumber].forEach((v) => { const k = ukCompanyNo(v); if (k && out.numbers.indexOf(k) < 0) out.numbers.push(k); });
+  };
+  const re = /<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi;
+  let m;
+  while ((m = re.exec(String(html || '')))) { try { visit(JSON.parse(m[1].trim()), 0); } catch (e) { /* not JSON */ } }
+  return out;
+}
+
+/** The name a site gives itself: og:site_name, or the brand part of its title ("Bambino Mio" from "Reusable Nappies | Bambino Mio"). */
+const GENERIC_TITLE = /^(home|home ?page|page|welcome|shop|shop all|all products|products|online shop|official site|official website|store|index|untitled|coming soon)$/i;
+function siteNameOf(html) {
+  const h = String(html || '');
+  const og = /<meta[^>]+property\s*=\s*["']og:site_name["'][^>]*>/i.exec(h);
+  const ogName = og ? attr(og[0], 'content').trim() : '';
+  if (ogName && ogName.length <= 60 && !GENERIC_TITLE.test(ogName)) return ogName;
+  const t = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(h);
+  if (!t) return '';
+  const parts = decodeEntities(t[1]).replace(/\s+/g, ' ').split(/\s+[|\u2013\u2014\-:\u00b7]\s+/).map((x) => x.trim()).filter((x) => x.length >= 3 && x.length <= 60 && !GENERIC_TITLE.test(x));
+  return parts.sort((a, b) => a.length - b.length)[0] || '';
+}
+
+// Companies a site mentions for other reasons (its platform, payments, delivery, reviews): never the company behind it.
+const NOT_OWNER = /\b(google|shopify|stripe|paypal|klarna|clearpay|afterpay|wix|squarespace|amazon|meta platforms|facebook|instagram|apple|microsoft|royal mail|parcelforce|dpd|evri|hermes|yodel|ups|fedex|dhl|mailchimp|klaviyo|sumup|worldpay|barclaycard|opayo|sage pay|trustpilot|feefo|yotpo|hotjar|cloudflare|godaddy|ionos|fasthosts|automattic|woocommerce|bigcommerce|etsy|ebay|tiktok|pinterest|vimeo|youtube|zendesk|hubspot|salesforce|information commissioner|dpdgroup|parcelnet|laybuy|zilch|divido|v12 retail|paypal|hokodo|snap finance|deko|payl8r)\b/i;
+
+/** "Smith Trading Ltd" from the start of "Smith Trading Ltd. All rights reserved": capitalised words up to Ltd, Limited, LLP or PLC. */
+function nameAfter(s) {
+  const words = String(s || '').trim().split(/\s+/).slice(0, 9);
+  if (/^by$/i.test(words[0] || '')) words.shift();
+  const out = [];
+  for (const w of words) {
+    const core = w.replace(/^[(\["'\u2018\u201c]+/, '');
+    if (!core) return '';
+    if (CO_SUFFIX.test(core) && out.length) { if (NOT_AFTER_SUFFIX.test(words[out.length + 1] || '')) return ''; out.push(w); return out.join(' ').replace(/[.,;:)\]'"\u2019\u201d]+$/, '').replace(/^[(\["'\u2018\u201c]+/, ''); }
+    if (!(/^[A-Z0-9&]/.test(core) || NAME_JOINERS.test(core)) || /^by$/i.test(core)) return '';
+    if (/[.!?;:]$/.test(w) && !/^co\.$/i.test(w)) return '';
+    out.push(w);
+  }
+  return '';
+}
+
+/** "Smith Trading Ltd" from the end of "... products. Smith Trading Ltd": the company name that ends a stretch of text. */
+function nameBefore(s) {
+  const words = String(s || '').trim().split(/\s+/);
+  const last = (words.pop() || '').replace(/[.,]$/, '');
+  if (!CO_SUFFIX.test(last)) return '';
+  const out = [last];
+  for (let i = words.length - 1; i >= 0 && out.length < 8; i--) {
+    const w = words[i];
+    if (/[.!?;:]$/.test(w) && !/^co\.$/i.test(w)) break;
+    const core = w.replace(/^[(\["'\u2018\u201c]+/, '');
+    if (!(/^[A-Z0-9&]/.test(core) || NAME_JOINERS.test(core))) break;
+    out.unshift(w.replace(/^[(\["'\u2018\u201c]+/, ''));
+  }
+  while (out.length > 1 && NAME_JOINERS.test(out[0])) out.shift();
+  return out.length > 1 ? out.join(' ') : '';
+}
+
+/** Short forms of a business's own names, for telling statements about it from statements about someone else. */
+function ownKeys(exName, siteName, domain) {
+  const out = [];
+  [exName, siteName].forEach((n) => { const k = normKey(n).replace(/ /g, ''); if (k.length >= 4 && out.indexOf(k) < 0) out.push(k); });
+  const stem = String(domain || '').split('.')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (stem.length >= 4 && out.indexOf(stem) < 0) out.push(stem);
+  return out;
+}
+/** Is this phrase one of the business's own names (or does it contain one, or start one)? */
+function isOwnName(phrase, keys) {
+  const c = normKey(phrase).replace(/ /g, '');
+  return c.length >= 4 && keys.some((k) => c.indexOf(k) >= 0 || k.indexOf(c) === 0);
+}
+// Words around a statement that make it about finance, credit or insurance: those name the lender, not the business.
+const FINANCE_NEAR = /(financ|credit|lender|loan|\bbank|insur|\bfca\b|financial conduct|authori[sz]ed and regulated|regulated by|interest free|\bapr\b)/i;
+// A copyright holder that is plainly whoever made the pictures, the site or the character, not the business.
+const MAKER_WORDS = /(photograph|photo|design|media|studio|pictures|images|newspaper|publishing|press|productions|creative|digital|\bweb\b|agency|marketing|films?\b|entertainment|licensing)/i;
+
+/**
+ * The company behind a brand, where a page says so outright about this business: "X is a trading name of Y Ltd" or
+ * "a brand of", "a division of", "Y Ltd trading as X" (or t/a), "this website is operated by Y Ltd", and the copyright line
+ * "© 2026 Y Ltd". X must be one of its own names (its listing, its site name or its web address), so a page that explains a
+ * lender, a courier or a brand it stocks is not taken. A copyright holder counts when it shares a name with the business, or
+ * when it is the last copyright line, at the foot of the page, and not a photographer, designer or character licence.
+ * Returns [{ name, kind }] with kind 'brand' or 'copyright'. A match must still be exactly that name on the register.
+ */
+function ownerStatements(text, keys) {
+  const t = String(text || ''), out = [], seen = Object.create(null);
+  if (!Array.isArray(keys)) keys = ownKeys(String(keys || ''), '', '');   // a bare exhibitor name will do
+  const add = (name, kind) => {
+    const k = normKey(name);
+    if (!name || k.replace(/ /g, '').length < 3 || seen[k] || NOT_OWNER.test(name) || PLACEHOLDER_NAME.test(name) || out.length >= 4) return;
+    seen[k] = 1; out.push({ name, kind });
+  };
+  const near = (i, len) => t.slice(Math.max(0, i - 200), i + len + 200);
+  const lastSentence = (x) => x.split(/[.!?;:|•]\s/).pop();
+  const firstSentence = (x) => x.split(/[.!?;:|•]\s/)[0];
+  let m;
+  const of = /(?:,\s*|\s+(?:which\s+)?(?:is|are)\s+)(?:a\s+|the\s+)?(?:registered\s+)?(?:trading\s+(?:name|style)|brand|division)\s+of\s+/gi;
+  while ((m = of.exec(t))) {
+    const subject = lastSentence(t.slice(Math.max(0, m.index - 120), m.index));
+    if (!isOwnName(subject.split(/\s+/).slice(-6).join(' '), keys) || FINANCE_NEAR.test(near(m.index, m[0].length))) continue;
+    add(nameAfter(t.slice(m.index + m[0].length, m.index + m[0].length + 200)), 'brand');
+  }
+  const by = /\b(?:is|are)\s+(?:(?:wholly\s+)?owned\s+and\s+operated|operated|owned|run|managed)\s+by\s+/gi;
+  while ((m = by.exec(t))) {
+    const subject = lastSentence(t.slice(Math.max(0, m.index - 120), m.index));
+    const aboutSite = /\b(?:this|our|the)\s+(?:web\s*site|site|online\s+(?:shop|store)|shop|store)\s*$/i.test(subject) || /^\s*we\s*$/i.test(subject);
+    if (!(aboutSite || isOwnName(subject.split(/\s+/).slice(-6).join(' '), keys)) || FINANCE_NEAR.test(near(m.index, m[0].length))) continue;
+    const name = nameAfter(t.slice(m.index + m[0].length, m.index + m[0].length + 200));
+    if (name && !MAKER_WORDS.test(name)) add(name, 'brand');
+  }
+  const ta = /,?\s+(?:trading\s+as|t\/a)\s+/gi;
+  while ((m = ta.exec(t))) {
+    const brand = firstSentence(t.slice(m.index + m[0].length, m.index + m[0].length + 80)).split(/[.,;!?(]/)[0];
+    if (!isOwnName(brand.split(/\s+/).slice(0, 6).join(' '), keys) || FINANCE_NEAR.test(near(m.index, m[0].length))) continue;
+    add(nameBefore(t.slice(Math.max(0, m.index - 160), m.index)), 'brand');
+  }
+  const marks = [];
+  const cr = /©|\(c\)|\bcopyright\b/gi;
+  while ((m = cr.exec(t))) {
+    const rest = t.slice(m.index + m[0].length, m.index + m[0].length + 200);
+    const lead = /^\s*(?:(?:©|\(c\)|copyright)\s*)*((?:19|20)\d\d(?:\s*[-–]\s*(?:(?:19|20)\d\d|present))?)?[\s,.]*/i.exec(rest);
+    // the © sign, or a year after "(c)" or "Copyright", so a "(c)" in a numbered list or the word in a sentence is not taken
+    if (m[0] !== '©' && !(lead && lead[1]) && !/^\s*(?:©|\(c\))/i.test(rest)) continue;
+    const name = nameAfter(rest.slice(lead ? lead[0].length : 0));
+    if (!name) continue;
+    if (marks.length && marks[marks.length - 1].name === name) continue;   // "Copyright © 2026 Y Ltd" is one line, not two
+    marks.push({ name, at: m.index });
+  }
+  marks.forEach((x, n) => {
+    if (isOwnName(x.name, keys) || keys.some((k) => normKey(x.name).split(' ').some((w) => w.length >= 4 && k.indexOf(w) >= 0))) { add(x.name, 'copyright'); return; }
+    const before = t.slice(Math.max(0, x.at - 80), x.at);
+    const footer = n === marks.length - 1 && x.at >= t.length - 800;
+    // "Website design © 2025 Pixel Studio Ltd", "Thomas & Friends™ © 2026 …", a photographer: whoever made the site, the pictures or the character
+    const credited = t.slice(Math.max(0, x.at - 200), x.at).toLowerCase();
+    const madeIt = /(design|develop|built|website|site\s+by|hosting|seo|theme|template|photo|picture|image|illustrat|artwork|logo|music|font|character|powered\s+by|review)/.exec(credited);
+    // "Logo design: Fox & Owl Ltd. © 2026 Fox & Owl Ltd": the holder was just credited for making something
+    if (madeIt && credited.indexOf(x.name.toLowerCase(), madeIt.index) >= 0) return;
+    if (!footer || MAKER_WORDS.test(x.name) || /[™®]/.test(before) || /(design|develop|built|website|site\s+by|hosting|seo|theme|template|photo|picture|image|illustrat|artwork|logo|music|font|character|powered\s+by|review)(?:(?!\.\s)[^|]){0,40}$/i.test(before)) return;
+    add(x.name, 'copyright');
+  });
+  return out;
+}
+
+/** Lower case letters and single spaces, accents and apostrophes dropped: for comparing people's names. */
+function personKey(s) {
+  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[\u2019']/g, '').replace(/[^a-z]+/g, ' ').trim();
+}
+
+const OFFICER_TITLES = /^(mr|mrs|ms|miss|mx|dr|sir|dame|lord|lady|prof|rev|hon)$/;
+/** A director from the register ("MACDONALD-JONES, Alan James, Dr") as the forms a website would write them. */
+function officerShape(x) {
+  const raw = String((x && x.name) || '').trim();
+  let last, fores;
+  if (raw.indexOf(',') >= 0) { last = raw.split(',')[0]; fores = raw.split(',').slice(1).join(' '); }
+  else { const t = raw.split(/\s+/); last = t.pop() || ''; fores = t.join(' '); }
+  const L = personKey(last), F = personKey(fores).split(' ').filter((w) => w.length >= 2 && !OFFICER_TITLES.test(w));
+  if (L.length < 2 || !F.length) return null;
+  return { name: titleCaseOfficer(raw), first: F[0], forenames: F, last: L, pc: extractPostcodes(String(((x.address || {}).postal_code) || ''))[0] || '' };
+}
+
+// Words that put a person in charge of the business, wanted in the same sentence as a director's name: "started by", "founder", "I'm".
+const ROLE_NEAR = /\b(founder|founders|cofounder|co founder|founded|started|created|set up|launched|run by|owned by|owner|owners|director|managing director|md|ceo|proprietor|im|i am|my name|meet|behind|made by|handmade by|hand made by|made with love by|maker|designer)\b/;
+
+/** The text of its pages as sentences in personKey form, with the business's own names blanked out (so "Lily Rose Designs" is not a Lily Rose). */
+function sentencesFor(texts, ownNames) {
+  const blanks = ownNames.map((n) => personKey(strictKey(n))).filter((n) => n.indexOf(' ') > 0);
+  const out = [];
+  texts.join(' . ').split(/[.!?\n|•“”"]+/).forEach((x) => {
+    let k = ' ' + personKey(x) + ' ';
+    if (k.length < 6 || out.length > 4000) return;
+    blanks.forEach((b) => { k = k.split(' ' + b + ' ').join(' | '); });
+    out.push(k);
+  });
+  return out;
+}
+
+/**
+ * Evidence that this company is the business behind the site, from its current directors: one named on its pages in a sentence
+ * that says they started, own or run it (not a customer review), its named contact, or an email address on its own domain
+ * (jane.smith@), else a director's correspondence postcode written on its pages. Null when none.
+ * ev: { sentences: from sentencesFor, people: [personKey], locals: ['janesmith'], pcs: ['AB1 2CD'] }
+ */
+function directorEvidence(officers, ev, coName) {
+  const co = personKey(strictKey(coName));
+  for (const o of officers) {
+    const forms = [o.first + ' ' + o.last];
+    if (o.forenames.length > 1) forms.push(o.forenames.join(' ') + ' ' + o.last);
+    for (const sen of (ev.sentences || [])) {
+      const x = co.indexOf(' ') > 0 ? sen.split(' ' + co + ' ').join(' | ') : sen;
+      if (forms.some((f) => x.indexOf(' ' + f + ' ') >= 0) && ROLE_NEAR.test(x)) return { kind: 'director', how: 'Director named on its website: ' + o.name };
+    }
+    if ((ev.people || []).some((p) => forms.indexOf(p) >= 0)) return { kind: 'director', how: 'Director is its named contact: ' + o.name };
+    const tight = [o.first + o.last, o.last + o.first].map((x) => x.replace(/ /g, ''));
+    if ((ev.locals || []).some((l) => tight.indexOf(l) >= 0)) return { kind: 'director', how: 'Director named in its email address: ' + o.name };
+  }
+  for (const o of officers) if (o.pc && (ev.pcs || []).indexOf(o.pc) >= 0) return { kind: 'dirpost', pc: o.pc, how: 'Director’s postcode on its website matches: ' + o.pc };
+  return null;
+}
+
+// Formation agents and virtual offices where thousands of companies are registered: a postcode there proves nothing.
+const SHARED_POSTCODES = ['EC1V 2NX', 'N1 7GU', 'WC2H 9JQ', 'WC1N 3AX', 'EC2A 4NE', 'W1W 7LT', 'W1W 5PF', 'HR5 3DJ', 'WC1X 0ND', 'EC4M 7JN'];
+const SHARED_OVER = 50;   // companies registered at one postcode before it counts as a shared address
+/** Is this a postcode where many companies are registered? Asks Companies House once per postcode per run; the list above if it cannot answer. */
+function postcodeShared(pc, ctx) {
+  if (!pc || SHARED_POSTCODES.indexOf(pc) >= 0) return true;
+  const cache = ctx ? (ctx.pcCount = ctx.pcCount || Object.create(null)) : Object.create(null);
+  if (!(pc in cache)) {
+    let n = -1;
+    try { const r = chGet('/advanced-search/companies?size=1&location=' + encodeURIComponent(pc)); if (r.code === 200 && r.json) n = +r.json.hits || 0; } catch (e) { n = -1; }
+    cache[pc] = n;
+  }
+  return cache[pc] > SHARED_OVER;
+}
+
+// Places a franchise class or a branch adds to its name ("Baby Sensory Kent"). When the company name lacks the place, the company
+// is likely the franchisor or head office, not the business at the stand.
+const PLACES = Object.create(null);
+('london manchester birmingham leeds liverpool bristol sheffield newcastle nottingham leicester brighton hove oxford cambridge bath york glasgow edinburgh ' +
+  'cardiff belfast aberdeen dundee swansea newport plymouth exeter norwich reading southampton portsmouth bournemouth coventry derby hull bradford ' +
+  'wolverhampton sunderland preston blackpool chester lincoln worcester gloucester cheltenham salisbury winchester canterbury guildford watford luton ' +
+  'peterborough northampton ipswich colchester chelmsford southend basildon maidstone crawley swindon milton keynes surrey kent essex sussex hampshire hants ' +
+  'berkshire berks hertfordshire herts buckinghamshire bucks oxfordshire oxon bedfordshire beds cambridgeshire cambs norfolk suffolk lincolnshire lincs ' +
+  'nottinghamshire notts derbyshire leicestershire northamptonshire warwickshire worcestershire gloucestershire glos herefordshire shropshire ' +
+  'staffordshire staffs cheshire lancashire lancs yorkshire cumbria northumberland durham devon cornwall dorset somerset wiltshire wilts merseyside ' +
+  'midlands cotswolds wales scotland ireland kensington chelsea fulham clapham wimbledon richmond islington hackney camden greenwich ealing ' +
+  'chiswick putney battersea twickenham kingston croydon bromley harrow barnet enfield north south east west central').split(' ').forEach((w) => { PLACES[w] = 1; });
+function placesIn(name) { return normKey(name).split(' ').filter((w) => PLACES[w]); }
+/** Places in the exhibitor's listed name that the company's name does not have. */
+function extraPlaces(exName, coName) { const co = placesIn(coName); return placesIn(exName).filter((w) => co.indexOf(w) < 0); }
+// A site that says it is one local business in a franchise or under licence.
+const FRANCHISEE = /\b(franchisee|franchisees|franchise owner|independently owned|is a franchise of|a franchise of|licensee of|under licen[cs]e from|area (?:owner|franchise|licen[cs]e))\b/i;
+
+/** The name as Companies House compares names: case, punctuation, "&"/"and", a leading "The" and the Ltd, Limited, PLC or LLP ending ignored, nothing else. */
+function strictKey(name) {
+  return String(name || '').toLowerCase().replace(/&/g, ' and ').replace(/[’']/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()
+    .replace(/^the /, '').replace(/( (ltd|limited|plc|llp|cyf|cyfyngedig))+$/, '').replace(/ company$/, ' co').trim();
+}
+/** The one company the search returned under exactly this name, or null (also when two have it, or the name is template text). */
+function exactCompany(hit, stated) {
+  if (!hit || PLACEHOLDER_NAME.test(stated)) return null;
+  const k = strictKey(stated);
+  const same = (hit.all || []).filter((x) => strictKey(x.c.name) === k);
+  return same.length === 1 ? same[0].c : null;
+}
+
+// Words around a brand that say nothing about the company, dropped for a second search.
+const FILLER_WORDS = /\b(shop|store|stores|boutique|official|online|brand|brands|collection|collections|studio|uk|gb|london|by|est)\b/g;
+const NUM_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+
+/** The domain as words found in the given text ("snugglebabyco" with "Snuggle Baby Co" on the page becomes "snuggle baby co"), or ''. */
+function segmentDomain(stem, text) {
+  stem = String(stem || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (stem.length < 6 || stem.length > 40) return '';
+  const vocab = Object.create(null);
+  String(text || '').toLowerCase().split(/[^a-z0-9]+/).forEach((w) => { if (w.length >= 2 || /^\d$/.test(w)) vocab[w] = 1; });
+  const best = [[]];   // best[i]: fewest words that make up stem[0..i)
+  for (let i = 1; i <= stem.length; i++) {
+    for (let j = Math.max(0, i - 20); j < i; j++) {
+      if (!best[j] || !vocab[stem.slice(j, i)]) continue;
+      const cand = best[j].concat(stem.slice(j, i));
+      if (!best[i] || cand.length < best[i].length) best[i] = cand;
+    }
+  }
+  const w = best[stem.length];
+  return w && w.length >= 2 ? w.join(' ') : '';
+}
+
+/**
+ * Other names worth a Companies House search when the exhibitor's own name gives nothing that can be confirmed:
+ * the name its site gives itself, numbers as words ("2 Little Legs" as "Two Little Legs"), the name without words such as
+ * Shop or UK, and its web address split into words. Any company these find still needs its own evidence before it counts.
+ */
+function searchVariants(exName, siteName, domain, pageText) {
+  const out = [], seen = Object.create(null);
+  const stem = String(domain || '').split('.')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+  seen[normKey(exName).split(' ').filter((w) => w.length >= 2).join('')] = 1;
+  const add = (q) => {
+    q = String(q || '').replace(/\s+/g, ' ').trim();
+    const words = normKey(q).split(' ').filter((w) => w.length >= 2);
+    const k = words.join('');
+    if (words.length < 2 || k.length < 5 || seen[k]) return;   // a single word ("Gifts", "Baby") matches far too many companies
+    seen[k] = 1; out.push(q);
+  };
+  const exWords = normKey(exName).replace(FILLER_WORDS, ' ').split(' ').filter((w) => w.length >= 4);
+  const site = normKey(siteName);
+  if (site && (exWords.some((w) => (' ' + site + ' ').indexOf(' ' + w + ' ') >= 0) || (stem && stem.indexOf(site.replace(/ /g, '')) >= 0))) add(siteName);
+  const words = String(exName || '').split(/\s+/);
+  if (words.some((w) => /^(10|[1-9])$/.test(w))) add(words.map((w) => (/^(10|[1-9])$/.test(w) ? NUM_WORDS[+w] : w)).join(' '));
+  else if (words.some((w) => NUM_WORDS.indexOf(w.toLowerCase()) > 0)) add(words.map((w) => { const i = NUM_WORDS.indexOf(w.toLowerCase()); return i > 0 ? String(i) : w; }).join(' '));
+  add(normKey(exName).replace(FILLER_WORDS, ' ').replace(/\s+/g, ' ').trim());
+  add(segmentDomain(stem, [exName, siteName, pageText].join(' ')));
+  return out;
 }
 
 /* ============================================================
@@ -1007,24 +1338,63 @@ function classifyMx(dns) {
   const hosts = mx.map((m) => m.host);
   if (hosts.some((h) => /(^|\.)(google|googlemail)\.com$/.test(h))) return { workspace: 'yes', host: 'Google Workspace', gateway: false };
   if (hosts.some((h) => /(mail\.protection\.outlook\.com|\.outlook\.com)$/.test(h))) return { workspace: 'no', host: 'Microsoft 365', gateway: false };
+  if (hosts.some((h) => /(^|\.)mail\.icloud\.com$/.test(h))) return { workspace: 'no', host: 'Apple iCloud', gateway: false };
   const gw = hosts.find((h) => GATEWAY.test(h));
   if (gw) return { workspace: 'unknown', host: 'Mail filter (' + hostLabel(gw) + ')', gateway: true };
   return { workspace: 'no', host: 'Other (' + hostLabel(hosts[0]) + ')', gateway: false };
 }
 
-function spfHasGoogle(dns) {
-  return !!dns && (dns.Answer || []).some((a) => a.type === 16 && /v=spf1/i.test(a.data) && /include:(_spf\.google\.com|google\.com|_netblocks\.google\.com)/i.test(a.data));
+/** The domain's TXT records as plain strings (long ones arrive in quoted pieces). */
+function txtStrings(dns) {
+  return ((dns && dns.Answer) || []).filter((a) => a.type === 16).map((a) => String(a.data || '').replace(/"\s*"/g, '').replace(/^\s*"|"\s*$/g, '').trim());
+}
+const spfOf = (txt) => txt.filter((t) => /^v=spf1\b/i.test(t)).join(' ');
+const SPF_GOOGLE = /include:(_spf\.google\.com|google\.com|_netblocks\.google\.com)(?=\s|$)/i;
+const SPF_MICROSOFT = /include:(spf\.protection\.outlook\.com|spf\.messaging\.microsoft\.com)(?=\s|$)/i;
+function spfHasGoogle(txt) { return SPF_GOOGLE.test(spfOf(txt)); }
+function microsoftHint(txt) { return SPF_MICROSOFT.test(spfOf(txt)) || txt.some((t) => /^MS=ms\d+/i.test(t)); }
+
+/**
+ * Other services the business has set up for its domain, read from its TXT records: a domain verification a company account leaves behind,
+ * or a service allowed to send its email (SPF). Finding one is a good sign; not finding one means nothing, as most small firms never verify.
+ * The first six are the other ways to sign in to AppSheet. Box could not be confirmed from its records, so it is not looked for.
+ */
+const ALSO_USES = [
+  ['Microsoft 365', (t, spf) => SPF_MICROSOFT.test(spf) || t.some((x) => /^MS=ms\d+/i.test(x)), /^Microsoft 365/],
+  ['Google Workspace', (t, spf) => SPF_GOOGLE.test(spf), /^Google/],
+  ['Apple', (t) => t.some((x) => /^apple-domain-verification=/i.test(x)), /^Apple/],
+  ['Dropbox', (t) => t.some((x) => /^dropbox-domain-verification=/i.test(x))],
+  ['Salesforce', (t, spf) => /include:(_spf\.salesforce\.com|aspmx\.pardot\.com)(?=\s|$)/i.test(spf)],
+  ['Smartsheet', (t) => t.some((x) => /^smartsheet-site-validation=/i.test(x))],
+  ['HubSpot', (t, spf) => /include:[^\s]*\.hubspotemail\.net(?=\s|$)/i.test(spf)],
+  ['Atlassian', (t) => t.some((x) => /^atlassian-domain-verification=/i.test(x))],
+  ['Zendesk', (t, spf) => /include:mail\.zendesk\.com(?=\s|$)/i.test(spf)],
+];
+function alsoUsesFrom(txt, mailHost) {
+  const spf = spfOf(txt);
+  return ALSO_USES.filter((a) => !(a[2] && a[2].test(mailHost || '')) && a[1](txt, spf)).map((a) => a[0]).join(', ');
 }
 
 function mailCheck(domain, ctx) {
-  if (!domain) return { workspace: 'unknown', host: '' };
+  if (!domain) return { workspace: 'unknown', host: '', also: '' };
   if (ctx.mail[domain]) return ctx.mail[domain];
   let used = domain;
   let res = classifyMx(dohQuery(used, 'MX'));
   if (/^(No email set up|Domain not found)$/.test(res.host) && regDomain(domain) !== domain) { used = regDomain(domain); res = classifyMx(dohQuery(used, 'MX')); }
-  if (res.gateway && spfHasGoogle(dohQuery(used, 'TXT'))) res = { workspace: 'likely', host: 'Google behind a mail filter', gateway: true };
+  const txt = /^(Domain not found|Could not look up mail records)$/.test(res.host) ? [] : txtStrings(dohQuery(used, 'TXT'));
+  if (res.gateway && spfHasGoogle(txt)) res = { workspace: 'likely', host: 'Google behind a mail filter', gateway: true };
+  else if (res.gateway && microsoftHint(txt)) res = { workspace: 'no', host: 'Microsoft 365 behind a mail filter', gateway: true };
+  res = Object.assign({}, res, { also: alsoUsesFrom(txt, res.host) });
   ctx.mail[domain] = res;
   return res;
+}
+
+/** Only the "Also uses" part, for a business whose email address is a personal one but which has its own website. */
+function alsoUsesOnly(domain, ctx) {
+  if (!domain) return '';
+  ctx.txt = ctx.txt || {};
+  if (!(domain in ctx.txt)) ctx.txt[domain] = alsoUsesFrom(txtStrings(dohQuery(domain, 'TXT')), '');
+  return ctx.txt[domain];
 }
 
 /* ---------- Companies House ---------- */
@@ -1079,12 +1449,17 @@ function chSearch(name) {
   return best;
 }
 
-function chDirectorName(number) {
-  const r = chGet('/company/' + encodeURIComponent(number) + '/officers?items_per_page=20');
-  if (r.code !== 200 || !r.json) return '';
-  const o = (r.json.items || []).find((x) => !x.resigned_on && /director|llp-member|llp-designated-member/.test(String(x.officer_role || '')) && !/\b(ltd|limited|llp|plc|services|holdings)\b/i.test(x.name || ''));
-  return o ? titleCaseOfficer(o.name) : '';
+/** The current directors (or LLP members) who are people, fetched once per company per run. Null when the register did not answer. */
+function chOfficers(number, ctx) {
+  const cache = ctx ? (ctx.officers = ctx.officers || Object.create(null)) : Object.create(null);
+  if (cache[number]) return cache[number];
+  const r = chGet('/company/' + encodeURIComponent(number) + '/officers?items_per_page=35');
+  if (r.code === 404) return (cache[number] = []);
+  if (r.code !== 200 || !r.json) return null;
+  return (cache[number] = (r.json.items || []).filter((x) => !x.resigned_on && /director|llp-member|llp-designated-member/.test(String(x.officer_role || '')) && !/\b(ltd|limited|llp|plc|services|holdings)\b/i.test(x.name || '')).map(officerShape).filter(Boolean));
 }
+
+function chDirectorName(number, ctx) { const o = (chOfficers(number, ctx) || [])[0]; return o ? o.name : ''; }
 
 /** Who can be emailed without asking first (PECR): companies and LLPs yes; Scottish partnerships yes; English limited partnerships no. */
 function emailableFor(legal, status, type, number) {
@@ -1101,15 +1476,15 @@ function emailableFor(legal, status, type, number) {
  * Enrichment: one exhibitor
  * ============================================================ */
 
-const COPY_FROM_DONOR = ['email', 'emailKind', 'emailSrc', 'contact', 'contactSrc', 'chDirector', 'companyNo', 'companyName', 'companyType', 'companyStatus', 'companyAddr', 'legal', 'legalSrc', 'emailable', 'workspace', 'mailHost'];
+const COPY_FROM_DONOR = ['email', 'emailKind', 'emailSrc', 'contact', 'contactSrc', 'chDirector', 'companyNo', 'companyName', 'companyType', 'companyStatus', 'companyAddr', 'legal', 'legalSrc', 'emailable', 'workspace', 'mailHost', 'alsoUses'];
 
 /** A finished row can stand in for another exhibitor on the same website, but only when it was properly read. */
 function usableDonor(r) {
-  return r.state === 'done' && r.domain && r.enrichedAt && r.legal === 'verified' && /^(Company number|Legal name|Registered postcode) on its website/.test(r.legalSrc) &&
+  return r.state === 'done' && r.domain && r.enrichedAt && r.legal === 'verified' && /^((Company number|Legal name|Registered postcode) on its website|Company behind the brand|Copyright holder|Director)/.test(r.legalSrc) &&
     !/not read|asks automated|did not respond|No website|Same website|Same exhibitor/i.test(r.note);
 }
 
-const COPY_COMPANY = ['legal', 'legalSrc', 'emailable', 'workspace', 'mailHost', 'companyNo', 'companyName', 'companyType', 'companyStatus', 'companyAddr', 'chDirector'];
+const COPY_COMPANY = ['legal', 'legalSrc', 'emailable', 'workspace', 'mailHost', 'alsoUses', 'companyNo', 'companyName', 'companyType', 'companyStatus', 'companyAddr', 'chDirector'];
 const REUSED = /^Same (website|exhibitor)/;
 
 /** Copies a finished lead's results onto this one. The company and what follows from it always come across as a set; email and contact only fill gaps. */
@@ -1216,12 +1591,14 @@ function enrichOne(ex, ctx) {
       if (det.phone && !ex.phone) { patch.phone = det.phone; patch.phoneSrc = 'show page'; }
     } else notes.push('Could not read the exhibitor page on the show site');
   }
-  const domain = siteDomain(site);
-  if (domain) patch.domain = domain;
+  const domain0 = siteDomain(site);
+  if (domain0) patch.domain = domain0;
+  const domain = domain0 && !MARKET_HOSTS.test(domain0) ? domain0 : '';
+  if (domain0 && !domain) { notes.push('Its web address is a marketplace or social media page, not its own website, so it was not read'); say0(ctx, 'Not read: ' + domain0 + ' is a marketplace or social media site, not its own website'); }
 
   // 2. Same website already checked (another stand, or another show): reuse it.
   const donor = domain ? donorFor(domain, ex.id, ctx) : null;
-  if (donor && ex.legalSrc !== 'Confirmed by you') {
+  if (donor && ex.legalSrc !== 'Confirmed by you' && placesIn(ex.name).sort().join() === placesIn(donor.name).sort().join()) {
     applyDonor(ex, donor, patch);
     patch.state = 'done'; patch.enrichedAt = nowIso(); patch.note = 'Same website as another exhibitor, so its results were reused';
     return patch;
@@ -1234,6 +1611,9 @@ function enrichOne(ex, ctx) {
   const cands = [];     // company numbers written on its own pages: { n, text }
   const names = [];     // company names it writes down, such as "Ickle Bubba Ltd"
   const pcs = [];       // postcodes on its pages
+  const owners = [];    // the company behind the brand, where a page says so: { name, kind }
+  const texts = [];     // the text of every page read, to look for its directors' names
+  let textLen = 0, siteName = '', homeText = '';
   const tried = {};
   const seen = [];      // every page asked for: { url, ok, why, gone }, for the trace and the note
   let noneNoted = false;   // the note already says nothing was found
@@ -1243,13 +1623,21 @@ function enrichOne(ex, ctx) {
   // (so a partner's "Little Angels Nursery Ltd" is not taken for "Little Dreamers"), otherwise the one word it has.
   const exKeys = normKey(ex.name).split(' ').filter(Boolean);
   const nameFits = (n) => normKey(n).split(' ').filter((t) => exKeys.indexOf(t) >= 0).length >= Math.min(2, exKeys.length);
-  const scan = (pg) => { const sc = scanPage(pg.body, pg.url); sc.names = legalNameStatements(sc.text, ex.name); return sc; };
+  const scan = (pg) => {
+    const sc = scanPage(pg.body, pg.url);
+    sc.names = legalNameStatements(sc.text, ex.name);
+    sc.owners = ownerStatements(sc.text, ownKeys(ex.name, siteName || sc.siteName, domain)).concat(sc.dataNames.map((n) => ({ name: n, kind: 'data' })));
+    return sc;
+  };
   const addPage = (sc) => {
     sc.emails.forEach((e) => { if (!emails.some((x) => x.email === e.email)) emails.push(e); });
     sc.phones.forEach((q) => { if (phones.indexOf(q) < 0) phones.push(q); });
     sc.numbers.forEach((n) => { if (!cands.some((c) => c.n === n)) cands.push({ n, text: sc.text }); });
+    sc.dataNumbers.forEach((n) => { if (!cands.some((c) => c.n === n)) cands.push({ n, text: sc.text, sd: true }); });
     sc.names.forEach((n) => { if (nameFits(n) && !names.some((x) => normKey(x) === normKey(n))) names.push(n); });
     sc.postcodes.forEach((c) => { if (pcs.indexOf(c) < 0) pcs.push(c); });
+    sc.owners.forEach((o) => { if (!owners.some((x) => normKey(x.name) === normKey(o.name))) owners.push(o); });
+    if (textLen < 400000) { texts.push(sc.text); textLen += sc.text.length; }
     if (!person && sc.person) person = sc.person;
   };
   // What happened to a page, for the trace and for the note on the lead.
@@ -1258,8 +1646,9 @@ function enrichOne(ex, ctx) {
     seen.push({ url: pg.url, ok: !w, why: w, gone: pg.code === 404 || pg.code === 410, late: !!pg.late });
     if (w) { say('Could not read ' + pg.url + ': ' + w); return; }
     const bits = [];
-    if (sc.numbers.length) bits.push('company number ' + sc.numbers.join(', '));
+    if (sc.numbers.length || sc.dataNumbers.length) bits.push('company number ' + sc.numbers.concat(sc.dataNumbers).join(', '));
     if (sc.names.length) bits.push('names ' + sc.names.join('; '));
+    if (sc.owners.length) bits.push('company behind it ' + sc.owners.map((o) => o.name).join('; '));
     if (sc.postcodes.length) bits.push('postcodes ' + sc.postcodes.slice(0, 4).join(', '));
     say('Read ' + pg.url + ' · ' + pg.code + ' · ' + kb(pg.size || pg.body.length) + ' · ' + (bits.length ? bits.join(' · ') : 'no company details on it'));
   };
@@ -1285,7 +1674,7 @@ function enrichOne(ex, ctx) {
   if (domain) {
     _cat = 'site';
     const wantCh = ex.legalSrc !== 'Confirmed by you' && !!prop('CH_KEY');
-    const side = [dohReq(domain, 'MX')].concat(wantCh ? [chReq(chSearchPath(ex.name))] : []);
+    const side = [dohReq(domain, 'MX'), dohReq(domain, 'TXT')].concat(wantCh ? [chReq(chSearchPath(ex.name))] : []);
     const hp = fetchPages([site + '/'], ctx, undefined, side);
     hp.side.forEach((r, i) => { _pre[side[i].key] = r; });
     const home = hp[0];
@@ -1297,14 +1686,21 @@ function enrichOne(ex, ctx) {
       const s = scan(home);
       record(home, s);
       addPage(s);
+      siteName = s.siteName; homeText = s.text.slice(0, 20000);
       if (s.textLen < 200) notes.push('Site loads its content with JavaScript, so little could be read');
       const list = [];
-      if (!emails.length && s.links.contact) list.push(s.links.contact);
+      const contactFirst = !emails.length && !!s.links.contact;
+      if (contactFirst) list.push(s.links.contact);
       if (!strong() && wantCh) {
-        // its own links to terms and privacy first, then the usual addresses for the kind of site it is, then its other policy pages
+        // its own links to terms and privacy first, then its contact page (often the address and the people behind it),
+        // then the usual addresses for the kind of site it is, then its other policy pages
         const origin = originOf(home.url);
-        s.links.legal.slice(0, 4).forEach((u) => list.push(u));
-        (PLATFORM_GUESSES[s.platform] || []).concat(LEGAL_GUESSES).slice(0, s.links.core === 0 ? 5 : s.links.core === 1 ? 3 : 0).forEach((g) => list.push(origin + g));
+        const guesses = s.links.core === 0 ? 5 : s.links.core === 1 ? 3 : 0;
+        s.links.legal.slice(0, 2).forEach((u) => list.push(u));
+        if (!contactFirst && s.links.contact) list.push(s.links.contact);
+        s.links.legal.slice(2, 4).forEach((u) => list.push(u));
+        (PLATFORM_GUESSES[s.platform] || []).concat(LEGAL_GUESSES).slice(0, guesses).forEach((g) => list.push(origin + g));
+        if (s.platform === 'shopify' && guesses < 2) list.push(origin + '/policies/contact-information');   // Shopify's business details page, seldom linked
         s.links.legal.slice(4).forEach((u) => list.push(u));
       }
       const once = {}, todoList = list.filter((u) => { const k = pathOf(u).replace(/\/+$/, '').toLowerCase(); if (once[k] || k === '' || tried[u]) return false; once[k] = 1; return true; }).slice(0, EXTRA_PAGES);
@@ -1327,9 +1723,10 @@ function enrichOne(ex, ctx) {
   // 5. Who runs the mailboxes.
   _cat = 'dns';
   const mailDom = email && !FREEMAIL.test(emailDomain(email)) ? emailDomain(email) : domain;
-  if (email && FREEMAIL.test(emailDomain(email))) { patch.workspace = 'no'; patch.mailHost = 'Personal email address'; }
-  else if (mailDom) { const mc = mailCheck(mailDom, ctx); patch.workspace = mc.workspace; patch.mailHost = mc.host; }
-  else { patch.workspace = 'unknown'; patch.mailHost = ''; }
+  if (email && FREEMAIL.test(emailDomain(email))) { patch.workspace = 'no'; patch.mailHost = 'Personal email address'; patch.alsoUses = alsoUsesOnly(mailDom, ctx); }
+  else if (mailDom) { const mc = mailCheck(mailDom, ctx); patch.workspace = mc.workspace; patch.mailHost = mc.host; patch.alsoUses = mc.also; }
+  else { patch.workspace = 'unknown'; patch.mailHost = ''; patch.alsoUses = ''; }
+  if (mailDom) say('Mail for ' + mailDom + ': ' + (patch.mailHost || 'not known') + (patch.alsoUses ? '. Also uses: ' + patch.alsoUses : '. No other services found in its domain records'));
 
   // 6. Companies House.
   _cat = 'ch';
@@ -1341,7 +1738,7 @@ function enrichOne(ex, ctx) {
   } else {
     try {
       let co = null, how = '', legal = 'none';
-      const looked = {};
+      const looked = Object.create(null);
       const lookup = (q) => {
         const k = normKey(q);
         if (!(k in looked)) {
@@ -1351,29 +1748,48 @@ function enrichOne(ex, ctx) {
         }
         return looked[k];
       };   // one search per name
+      // A postcode on its pages counts only where few companies are registered (not a formation agent's or virtual office's address).
+      const pcOk = (pc) => {
+        if (!pc || pcs.indexOf(pc) < 0) return false;
+        if (!postcodeShared(pc, ctx)) return true;
+        say(pc + ' is on its pages, but it is a shared address where many companies are registered, so it proves nothing');
+        return false;
+      };
       // Evidence, strongest first. Anything weaker than these leaves the lead as "to check" for you to decide.
       //  1. a company number on its own pages that the register has, under a name that fits
       if (cands.length) { co = verifyCandidates(cands, ex.name, say); if (co) { legal = 'verified'; how = 'Company number on its website'; } }
-      //  2. its pages name the company behind the site ("We are X Ltd") and the register holds exactly that name
-      //     (Companies House does not allow two companies the same name, so an exact match is one company)
+      //  2. its pages name the company behind the site ("We are X Ltd") and the register holds exactly that name, once
       if (!co) {
         for (let i = 0; i < names.length && i < 2 && !co; i++) {
-          const hit = lookup(names[i]);
-          if (hit && hit.raw >= 1) { co = hit.c; legal = 'verified'; how = 'Legal name on its website: ' + names[i]; }
+          const c = exactCompany(lookup(names[i]), names[i]);
+          if (c) { co = c; legal = 'verified'; how = 'Legal name on its website: ' + names[i]; }
         }
       }
+      //  2b. its pages name the company behind the brand ("a trading name of Y Ltd", "© 2026 Y Ltd", a legalName in its data),
+      //      and the register holds exactly that name, once
+      const OWNER_HOW = { brand: 'Company behind the brand on its website: ', copyright: 'Copyright holder on its website: ', data: 'Legal name on its website (structured data): ' };
+      const own = owners.filter((o) => !names.some((n) => normKey(n) === normKey(o.name)));
+      if (!co) {
+        for (let i = 0; i < own.length && i < 2 && !co; i++) {
+          const c = exactCompany(lookup(own[i].name), own[i].name);
+          if (c) { co = c; legal = 'verified'; how = OWNER_HOW[own[i].kind] + own[i].name; }
+        }
+      }
+      let conflict = false;
       if (!co) {
         const hit = lookup(ex.name);
         if (hit && hit.raw >= 0.6) {
           co = hit.c; legal = hit.raw >= 1 && co.status === 'active' ? 'likely' : 'possible'; how = hit.raw >= 1 ? 'Same name on Companies House' : 'Similar name on Companies House';
           //  3. the registered office postcode is written on its own pages, beside a name that fits
-          if (co.pc && pcs.indexOf(co.pc) >= 0) { legal = 'verified'; how = 'Registered postcode on its website matches: ' + co.pc; }
+          if (pcOk(co.pc)) { legal = 'verified'; how = 'Registered postcode on its website matches: ' + co.pc; }
           else {
             //  otherwise say if its pages name a different company from the one the register gave. That is no longer "likely":
             //  the business seems to trade as another legal entity, so it is left for you to decide rather than offered for bulk confirming
-            if (names.length && !names.some((n) => nameScore(n, co.name) >= 0.9)) {
-              how += '. Its website names ' + names[0] + ', which is not the name on this record';
+            const named = names.concat(own.map((o) => o.name));
+            if (named.length && !named.some((n) => nameScore(n, co.name) >= 0.9)) {
+              how += '. Its website names ' + named[0] + ', which is not the name on this record';
               if (legal === 'likely') legal = 'possible';
+              conflict = true;
             }
             if (co.pc && pcs.length) how += '. Postcodes on its pages: ' + pcs.slice(0, 2).join(', ') + '. The register has ' + co.pc;
           }
@@ -1383,13 +1799,68 @@ function enrichOne(ex, ctx) {
       if (legal !== 'verified' && pcs.length) {
         const first = looked[normKey(ex.name)] || null;
         const alt = first ? first.all.filter((x) => x.c.pc && pcs.indexOf(x.c.pc) >= 0 && x.raw >= 0.6).sort((a, b) => b.raw - a.raw)[0] : null;
-        if (alt) { co = alt.c; legal = 'verified'; how = 'Registered postcode on its website matches: ' + co.pc; say('Another company in the search results is registered at ' + co.pc + ', which is written on its pages: ' + co.name); }
+        if (alt && pcOk(alt.c.pc)) { co = alt.c; legal = 'verified'; how = 'Registered postcode on its website matches: ' + co.pc; say('Another company in the search results is registered at ' + co.pc + ', which is written on its pages: ' + co.name); }
+      }
+      //  4. a company whose name fits closely, backed by its directors: one named on its pages as the person behind it, as its contact,
+      //     or in an email address on its own domain, or a director's postcode on its pages. If the exhibitor's own name finds none,
+      //     the other names it goes by are searched too. This only ever confirms a company: a name nothing backs up is left as it was.
+      if (legal !== 'verified' && !conflict) {
+        const ownDomains = [domain, mailDom].filter(Boolean);
+        const ev = {
+          sentences: sentencesFor(texts, [ex.name, siteName]),
+          people: [ex.contact, patch.contact, person].filter(Boolean).map(personKey).filter((p) => p.indexOf(' ') > 0),
+          locals: [ex.email, email].concat(emails.filter((e) => ownDomains.indexOf(emailDomain(e.email)) >= 0).map((e) => e.email)).filter(Boolean)
+            .map((e) => String(e).split('@')[0].toLowerCase()).filter((l) => !GENERIC_LOCAL.test(l)).map((l) => l.replace(/[^a-z]/g, '')).filter((l) => l.length >= 5),
+          pcs,
+        };
+        const pool = [], done = Object.create(null);
+        let officerLooks = 0;
+        const fromSearch = (h, via) => (h ? h.all : []).filter((x) => x.raw >= 0.75).sort((a, b) => b.raw - a.raw).forEach((x) => { if (!pool.some((p) => p.c.no === x.c.no)) pool.push({ c: x.c, raw: x.raw, via }); });
+        const tryPool = () => {
+          for (const p of pool) {
+            if (done[p.c.no]) continue;
+            done[p.c.no] = 1;
+            const tail = p.via ? ' (found by searching “' + p.via + '”)' : '';
+            if (p.via && pcOk(p.c.pc)) return { c: p.c, how: 'Registered postcode on its website matches: ' + p.c.pc + tail };
+            if (officerLooks >= 3) continue;
+            officerLooks++;
+            const offs = chOfficers(p.c.no, ctx);
+            if (!offs) { say('Directors of ' + p.c.name + ' (' + p.c.no + ') could not be fetched from Companies House just now'); continue; }
+            let d = directorEvidence(offs, ev, p.c.name);
+            if (d && d.kind === 'dirpost' && !pcOk(d.pc)) d = null;
+            say('Directors of ' + p.c.name + ' (' + p.c.no + '): ' + (offs.length ? offs.slice(0, 4).map((o) => o.name).join(', ') : 'none listed') + '. ' + (d ? d.how : 'None of them is named on its pages as the person behind it, as its contact or in its email, and none of their postcodes counts'));
+            if (d) return { c: p.c, how: d.how + tail };
+          }
+          return null;
+        };
+        fromSearch(looked[normKey(ex.name)], '');
+        let found = tryPool();
+        if (!found) {
+          const vars = searchVariants(ex.name, siteName, domain, homeText).filter((v) => !(normKey(v) in looked)).slice(0, 2);
+          if (vars.length) say('Searching Companies House for the other names it goes by: ' + vars.map((v) => '“' + v + '”').join(', '));
+          vars.forEach((v) => {
+            try { fromSearch(lookup(v), v); } catch (err) { say('Companies House search for “' + v + '” did not answer: ' + clip(String((err && err.message) || err), 60)); }   // an extra search never fails the check
+          });
+          found = tryPool();
+        }
+        if (found) { co = found.c; legal = 'verified'; how = found.how; }
+      }
+      //  5. A franchise class or a branch ("Baby Sensory Kent") often shows the franchisor's or head office's details. If its listed name
+      //     adds a place the company's name lacks, or its site says it is a franchise or independently owned, a match by name, director
+      //     or postcode is left for you to decide. A company number on its own pages still stands, unless both signs are there.
+      if (co && legal === 'verified') {
+        const extra = extraPlaces(ex.name, co.name), fr = FRANCHISEE.test(texts.join(' '));
+        if (how === 'Company number on its website' ? extra.length && fr : extra.length || fr) {
+          const why = extra.length ? 'its listed name adds “' + extra.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') + '”, which the company name does not have' : 'its website says it is a franchise or independently owned';
+          say('Not confirmed: ' + why + ', so ' + co.name + ' may be the franchisor or head office');
+          legal = 'possible'; how = 'May be a franchise or branch: ' + why + '. Found: ' + how;
+        }
       }
       if (co) {
         patch.companyNo = co.no; patch.companyName = co.name; patch.companyType = co.type; patch.companyStatus = co.status; patch.companyAddr = co.addr;
         patch.legal = legal; patch.legalSrc = how; patch.emailable = emailableFor(legal, co.status, co.type, co.no);
         say('Result: ' + legal + '. ' + how);
-        if (legal !== 'possible') patch.chDirector = chDirectorName(co.no);
+        if (legal !== 'possible') patch.chDirector = chDirectorName(co.no, ctx);
         if (legal === 'verified' && !ex.contact && !patch.contact && patch.chDirector) { patch.contact = patch.chDirector; patch.contactSrc = 'Companies House director'; }
       } else {
         Object.assign(patch, { companyNo: '', companyName: '', companyType: '', companyStatus: '', companyAddr: '', chDirector: '', legal: 'none', legalSrc: 'No company found', emailable: 'consent' });
@@ -1439,8 +1910,21 @@ function db() {
   });
   const first = ss.getSheetByName('Sheet1');
   if (first && ss.getSheets().length > 1) ss.deleteSheet(first);
+  if (prop('EX_COLS') !== String(EX_COLS.length)) { ensureCols(ss.getSheetByName('Exhibitors'), EX_COLS); setProp('EX_COLS', String(EX_COLS.length)); }
   _ss = ss;
   return ss;
+}
+
+/** A sheet made by an older release lacks the newest columns: add them on the end, with their heading, as plain text. */
+function ensureCols(sh, cols) {
+  const have = sh.getMaxColumns();
+  if (have < cols.length) sh.insertColumnsAfter(have, cols.length - have);
+  const head = sh.getRange(1, 1, 1, cols.length).getValues()[0];
+  cols.forEach((c, i) => {
+    if (String(head[i] || '') !== '') return;
+    sh.getRange(1, i + 1, sh.getMaxRows(), 1).setNumberFormat('@');
+    sh.getRange(1, i + 1, 1, 1).setValues([[c]]);
+  });
 }
 
 function cell(v) {
@@ -1482,12 +1966,13 @@ function deleteRowNumbers(name, nums) {
  * ============================================================ */
 
 function counts(rows) {
-  const c = { total: rows.length, done: 0, corporate: 0, consent: 0, check: 0, google: 0, pending: 0 };
+  const c = { total: rows.length, done: 0, corporate: 0, consent: 0, check: 0, google: 0, microsoft: 0, pending: 0 };
   rows.forEach((r) => {
     if (r.state === 'done' || r.state === 'error') {
       c.done++;
       if (r.emailable === 'corporate') c.corporate++; else if (r.emailable === 'check') c.check++; else c.consent++;
       if (r.workspace === 'yes' || r.workspace === 'likely') c.google++;
+      else if (/^Microsoft 365/.test(r.mailHost)) c.microsoft++;
     } else c.pending++;
   });
   return c;
@@ -1647,13 +2132,17 @@ function speedInfo() {
 
 /** How each company match was made, across everything that has been checked. */
 function evidenceInfo(rows) {
-  const e = { number: 0, name: 0, postcode: 0, same: 0, conflict: 0, similar: 0, you: 0, none: 0 };
+  const e = { number: 0, name: 0, owner: 0, postcode: 0, director: 0, dirpost: 0, same: 0, conflict: 0, branch: 0, similar: 0, you: 0, none: 0 };
   rows.forEach((r) => {
     if (r.state !== 'done' && r.state !== 'error') return;
     const w = String(r.legalSrc || '');
     if (/^Company number on its website/.test(w)) e.number++;
     else if (/^Legal name on its website/.test(w)) e.name++;
+    else if (/^(Company behind the brand|Copyright holder) on its website/.test(w)) e.owner++;
     else if (/^Registered postcode on its website/.test(w)) e.postcode++;
+    else if (/^Director\u2019s postcode/.test(w)) e.dirpost++;
+    else if (/^Director /.test(w)) e.director++;
+    else if (/^May be a franchise or branch/.test(w)) e.branch++;
     else if (/^Same name on Companies House/.test(w) && r.legal === 'possible') e.conflict++;
     else if (/^Same name on Companies House/.test(w)) e.same++;
     else if (/^Similar name on Companies House/.test(w)) e.similar++;
@@ -1820,7 +2309,7 @@ function addEntries(show, entries) {
         website, domain, detailUrl: e.detailUrl || '', phone: clip(e.phone, 30), phoneSrc: e.phone ? (e.phoneSrc || 'directory') : '',
         email, emailKind: email ? (FREEMAIL.test(emailDomain(email)) ? 'freemail' : GENERIC_LOCAL.test(email.split('@')[0]) ? 'generic' : 'named') : '', emailSrc: email ? 'pasted' : '',
         contact: clip(e.contact, 80), contactSrc: e.contact ? 'pasted' : '', chDirector: '', companyNo: '', companyName: '', companyType: '', companyStatus: '', companyAddr: '',
-        legal: '', legalSrc: '', emailable: '', workspace: '', mailHost: '', state: 'todo', note: '', addedAt: nowIso(), enrichedAt: '',
+        legal: '', legalSrc: '', emailable: '', workspace: '', mailHost: '', state: 'todo', note: '', addedAt: nowIso(), enrichedAt: '', alsoUses: '',
       });
     });
     appendObjs('Exhibitors', EX_COLS, fresh);

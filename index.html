@@ -401,7 +401,7 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
 <div class="toast" id="toast" role="status" popover="manual"></div>
 
-<script src="core.js?v=12"></script>
+<script src="core.js?v=13"></script>
 <script>
 (() => {
 'use strict';
@@ -514,7 +514,7 @@ function setOffline(err) {
 
 /* ---------- Data ---------- */
 function totals() {
-  const t = { total: 0, done: 0, corporate: 0, consent: 0, check: 0, google: 0, pending: 0 };
+  const t = { total: 0, done: 0, corporate: 0, consent: 0, check: 0, google: 0, microsoft: 0, pending: 0 };
   S.shows.forEach((s) => { const c = s.counts || {}; Object.keys(t).forEach((k) => { t[k] += c[k] || 0; }); });
   return t;
 }
@@ -534,7 +534,7 @@ function setUsage(u) {
 const oldScript = (e) => (/unknown action/i.test(e.message || '') ? 'Your Apps Script needs its new version first. The README says how (Update).' : e.message);
 
 // The release of Apps Script code this app expects. Shown in Settings; a warning appears when the script behind the app is older.
-const EXPECT_BUILD = 12;
+const EXPECT_BUILD = 13;
 
 async function checkBuild() {
   if (!S.api) return;
@@ -754,7 +754,7 @@ function sectorRow(s) {
 /* ---------- Sector ---------- */
 function sectorHtml(sector) {
   const shows = S.shows.filter((s) => s.sector === sector);
-  const t = { total: 0, done: 0, corporate: 0, consent: 0, check: 0, google: 0, pending: 0 };
+  const t = { total: 0, done: 0, corporate: 0, consent: 0, check: 0, google: 0, microsoft: 0, pending: 0 };
   shows.forEach((s) => { const c = s.counts || {}; Object.keys(t).forEach((k) => { t[k] += c[k] || 0; }); });
   const links = C.searchLinks(sector);
   const groups = C.groupShows(shows, today());
@@ -815,7 +815,7 @@ function updateShow() {
   const progress = c.pending ? `<div class="progress"><div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Checking exhibitors"><i style="width:${pct}%"></i></div>
       <p class="num">${running ? 'Checking' : 'Paused at'} ${c.done} of ${c.total}. ${running ? 'Keep this open, or leave it: the checks carry on in the background.' : 'Tap Keep checking to carry on.'}</p></div>` : '';
   const actions = showActions(s, c);
-  const key = [s.id, s.name, s.start, s.end, c.total, c.done, c.corporate, c.check, c.consent, c.google, running, s.status, s.statusNote, s.urls.length].join('|');
+  const key = [s.id, s.name, s.start, s.end, c.total, c.done, c.corporate, c.check, c.consent, c.google, c.microsoft, running, s.status, s.statusNote, s.urls.length].join('|');
   if (hero.dataset.key !== key) {
     hero.dataset.key = key;
     hero.innerHTML = `${planSvg(c.total ? c : null)}
@@ -899,6 +899,7 @@ function openRow(id) {
     <div class="actions" style="margin-top:10px"><button class="btn" type="button" data-act="find-co" data-id="${esc(r.id)}">Find on Companies House</button><button class="btn" type="button" data-act="company-no" data-id="${esc(r.id)}">Enter company number</button></div>
     <h3>Email setup</h3>
     ${kv('Provider', esc(C.workspaceLabel(r)))}
+    ${done ? kv('Also uses', esc(r.alsoUses), 'From its domain records. Not finding a service does not mean they do not use it.') : ''}
     <h3>At the show</h3>
     ${kv('Exhibition', esc(s.name || ''), s.start ? C.fmtDates(s.start, s.end) : '')}
     ${alsoIn}
@@ -1137,7 +1138,7 @@ function insightHtml() {
   let h = '<div id="insightBox">';
   if (ev) {
     h += `<h3>How companies were matched</h3><div class="ev">${ev.rows.map((r) => `<div class="ev-row"><span class="dot ${r.tone}"></span><span>${esc(r.label)}</span><b>${r.n.toLocaleString('en-GB')}</b></div>`).join('')}</div>
-      <p class="hint">Across ${ev.total.toLocaleString('en-GB')} checked businesses. A number, an exact legal name or a matching postcode on its own website counts as confirmed. A similar name alone stays “to check”. Open any business and tap Why this result? to see what was read.</p>`;
+      <p class="hint">Across ${ev.total.toLocaleString('en-GB')} checked businesses. A company number, an exact legal name or the company behind the brand on its own website counts as confirmed, and so does a name match backed by a matching postcode or by one of its directors. A similar name alone stays “to check”. Open any business and tap Why this result? to see what was read.</p>`;
   }
   const rs = C.reachSummary(st.reach);
   if (rs && rs.sites) {
