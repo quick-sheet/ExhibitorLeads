@@ -55,6 +55,18 @@ This is a guide, not legal advice.
 2. Open the **Actions** tab and wait for **Deploy to Pages** to show a green tick (usually under a minute). Opening `sw.js` on the live address should show the new `exhibitorleads-vN` name.
 3. Fully close the app and reopen it. If it still looks the same, close and reopen once more.
 
+**Release 11 (Apps Script release 11).** A finished check no longer loses its message if you leave the app just before the end, and Settings shows what the last message did.
+
+1. Paste the new `Code.gs` over the old one and save. You do not need to run `authorise` again.
+2. **Deploy, Manage deployments**, the pencil, **New version**, **Deploy**.
+3. Upload `index.html`, `sw.js` and `README.md` and commit. Wait for the green tick in **Actions**, then fully close and reopen the app. Settings should say **Apps Script release: 11, up to date**.
+
+What release 11 changes:
+
+- **A message could be lost.** The background run (every 10 minutes) counts you as “in the app” for two and a half minutes after your last tap. If it finished a check inside that time, it skipped the message and then forgot the check. Now it keeps the finished check and sends the message at the next background run, if you are away by then. It is dropped after 30 minutes, or if you are back in the app, or if you start checking that exhibition again. A check you watch finish in the app still sends nothing.
+- **Last message.** Under Notifications, Settings says what the last message did: “Last message: the message for Baby & Toddler Show was sent at 19:00.” or why it could not be sent. A check that finishes in the background has no screen to tell you, so this is where a failure shows. (Apps Script, **Executions**, then the run, shows the same reason in its log as a line starting `notify:`.)
+- **If it says the message could not be sent because of approval,** choose `authorise`, press **Run** and approve. If checks that finish in the background still fail after that, choose `setup` and press **Run** once more: it is safe to repeat, keeps your token and sheet, and sets up the 10-minute background run again.
+
 **Release 10 (Apps Script release 10).** Notifications now reach ntfy by email, and the pop-up messages show above open panels.
 
 1. Paste the new `Code.gs` over the old one and save.
@@ -76,7 +88,7 @@ Every release: after deploying the new `Code.gs`, open **Settings**: the box und
 What release 9 added:
 
 - **Notifications through ntfy.** When a check of 5 or more exhibitors finishes and you are not in the app, ntfy sends one message, for example “Baby & Toddler Show: all 120 checked. 34 can email, 29 to check, 57 need consent. 9 sites wouldn’t open.” Settings has a **Notifications** section with the setup steps (Android: install ntfy, tap Connect, turn on instant delivery; iPhone: install ntfy, copy the code, subscribe by hand) and a **Send test notification** button.
-  - “Not in the app” means the app has not contacted your sheet for about two and a half minutes (it is closed, or the phone is locked). Nothing is sent while you are watching a check finish.
+  - “Not in the app” means the app has not contacted your sheet for about two and a half minutes (it is closed, or the phone is locked). Nothing is sent while you are watching a check finish. If a check finishes in the background just after you leave, the message waits for the next background run (up to 10 minutes) and goes if you are still away (release 11).
   - Smaller jobs (fewer than 5 exhibitors, such as checking one business again) finish without a message. One message per exhibition, however many runs it took.
   - The notification code is made on your phone and kept in your Apps Script's Script Properties, never in the repository. Anyone who knows the code could read the messages, which only hold the exhibition name and counts. **Turn off** forgets it.
   - On Android the message holds a link to the exhibition (from release 10; release 9 made the tap itself open the app). On iPhone there is no link, because it would open Safari, which does not have your settings. Open Exhibitor Leads from your Home Screen.

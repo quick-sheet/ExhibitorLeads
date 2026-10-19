@@ -401,7 +401,7 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
 <div class="toast" id="toast" role="status" popover="manual"></div>
 
-<script src="core.js?v=10"></script>
+<script src="core.js?v=11"></script>
 <script>
 (() => {
 'use strict';
@@ -534,7 +534,7 @@ function setUsage(u) {
 const oldScript = (e) => (/unknown action/i.test(e.message || '') ? 'Your Apps Script needs its new version first. The README says how (Update).' : e.message);
 
 // The release of Apps Script code this app expects. Shown in Settings; a warning appears when the script behind the app is older.
-const EXPECT_BUILD = 10;
+const EXPECT_BUILD = 11;
 
 async function checkBuild() {
   if (!S.api) return;
@@ -1071,7 +1071,7 @@ function notifyHtml() {
   if (!n) h += '<p class="hint">These need release 10 of the Apps Script. Deploy the new version first.</p>';
   else if (n.on) h += `<p>On. You get a message in the ntfy app when a check of 5 or more exhibitors finishes and you are not in this app. It can take up to a minute to arrive.${isIOS ? ' On iPhone, open Exhibitor Leads from your Home Screen.' : ' Tap the link in the message to open that exhibition.'}</p>
       <div class="actions"><button class="btn" type="button" data-act="notify-test">Send test notification</button><button class="btn" type="button" data-act="notify-setup">Setup steps</button><button class="btn" type="button" data-act="notify-off">Turn off</button></div>
-      <p class="notify-result" role="status"></p>`;
+      <p class="notify-result${n.last && !n.last.ok ? ' bad' : ''}" role="status">${esc(lastNotifyLine(n.last))}</p>`;
   else h += `<p>Get a message on your phone when a big check finishes while you are away from the app. It uses ntfy, a free notification app with no account.</p>
       <div class="actions"><button class="btn primary" type="button" data-act="notify-setup">Set up notifications</button></div>`;
   return h + '</div>';
@@ -1097,6 +1097,21 @@ async function openNotifySetup() {
     <ol class="steps">${steps}</ol>
     <div class="actions"><button class="btn primary" type="button" data-act="settings">Done</button><button class="btn" type="button" data-act="notify-test">Send test notification</button></div>
     <p class="notify-result" role="status"></p>`);
+}
+
+/** What the last message did, in words. A check that finishes in the background has no screen to say so, so Settings does. */
+function lastNotifyLine(l) {
+  const d = l && l.at ? new Date(l.at) : null;
+  if (!d || isNaN(d)) return '';
+  const time = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(d);
+  const when = d.toDateString() === new Date().toDateString() ? time : new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(d) + ', ' + time;
+  const what = l.kind === 'test' ? 'the test message' : 'the message for ' + (l.show || 'a check');
+  return l.ok ? `Last message: ${what} was sent at ${when}.` : `Last message: ${what} could not be sent at ${when}. ${l.error || ''}`.trim();
+}
+function rememberNotify(ok, error) {
+  if (!S.status || !S.status.notify) return;
+  S.status = Object.assign({}, S.status, { notify: Object.assign({}, S.status.notify, { last: { at: new Date().toISOString(), kind: 'test', show: '', ok, error: error || '' } }) });
+  put('status', S.status);
 }
 
 /* The result of the test message, written where you are looking (a pop-up alone is easy to miss). */
@@ -1489,8 +1504,9 @@ async function act(name, t) {
           await call('testNotify', null, 30000);
           const at = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date());
           showNotifyResult(`Sent at ${at}. It should reach ntfy within a minute. If it does not, look in your Gmail inbox for a bounce message.`);
+          rememberNotify(true);
           toast('Test sent. It should arrive in ntfy within a minute');
-        } catch (e) { showNotifyResult(oldScript(e), true); toast(oldScript(e)); }
+        } catch (e) { showNotifyResult(oldScript(e), true); toast(oldScript(e)); rememberNotify(false, oldScript(e)); }
       });
       break;
     }
