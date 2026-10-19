@@ -467,6 +467,48 @@
     return { fetches, bg, warn, message };
   }
 
+  /* ---------- Settings: how company matches were made, how fast checks run, a recheck in progress ---------- */
+
+  // In the order of how much each can be trusted. The first four count as confirmed, the next two are left for you to decide.
+  const EVIDENCE = [
+    ['number', 'Company number on its website', 'corporate'],
+    ['name', 'Legal name on its website', 'corporate'],
+    ['postcode', 'Registered postcode on its website', 'corporate'],
+    ['you', 'Confirmed by you', 'corporate'],
+    ['same', 'Same name on Companies House', 'check'],
+    ['similar', 'Similar name on Companies House', 'check'],
+    ['none', 'No company found', 'consent'],
+  ];
+
+  function evidenceRows(ev) {
+    if (!ev || typeof ev !== 'object') return null;
+    const rows = EVIDENCE.map((e) => ({ key: e[0], label: e[1], tone: e[2], n: Math.max(0, Math.round(+ev[e[0]] || 0)) })).filter((r) => r.n > 0);
+    const total = rows.reduce((a, r) => a + r.n, 0);
+    return total ? { rows, total } : null;
+  }
+
+  const SPEED_PARTS = [['show', 'Show page'], ['site', 'Home page'], ['pages', 'Other pages'], ['mail', 'Mail records'], ['ch', 'Companies House'], ['sheet', 'Saving to your sheet']];
+
+  /** The average check over the last 60, and where its time went. The first requests go out together, so they all show under Home page. */
+  function speedLines(sp) {
+    if (!sp || !(+sp.n > 0) || !(+sp.seconds > 0)) return null;
+    const one = (x) => (Math.round((+x || 0) * 10) / 10).toFixed(1);
+    const top = Math.max(0.1, ...SPEED_PARTS.map((q) => +sp[q[0]] || 0));
+    const parts = SPEED_PARTS.map((q) => ({ key: q[0], label: q[1], text: one(sp[q[0]]) + ' s', width: (+sp[q[0]] || 0) > 0 ? Math.max(2, Math.round((+sp[q[0]] / top) * 100)) : 0 })).filter((q) => q.width > 0);
+    const slowest = (sp.slowest || []).filter((h) => h && h.host).map((h) => ({ host: String(h.host), text: one(h.seconds) + ' s' }));
+    const per = one(sp.seconds);
+    const hour = Math.round(3600 / Math.max(1, +sp.seconds));
+    return { n: Math.round(+sp.n), per: per + ' s', requests: one(sp.requests), perHour: commas(hour), parts, slowest };
+  }
+
+  /** A recheck: where the group of leads stood when it was queued, and where it stands now. */
+  function recheckSummary(rc) {
+    if (!rc || typeof rc !== 'object') return null;
+    const g = (o, k) => Math.max(0, Math.round(+(o && o[k]) || 0));
+    const rows = [['corporate', 'Can email'], ['check', 'To check'], ['consent', 'Consent needed']].map((q) => ({ key: q[0], label: q[1], before: g(rc.before, q[0]), now: g(rc.now, q[0]) }));
+    return { at: rc.at || '', scope: rc.scope || '', queued: g(rc, 'queued'), pending: g(rc, 'pending'), all: rc.include === 'all', rows, gained: Math.max(0, g(rc.now, 'corporate') - g(rc.before, 'corporate')) };
+  }
+
   return {
     esc, plural, dayNum, todayIso, GROUPS, showGroup, groupShows, fmtDates, ago,
     STATUS_LABEL, statusOf, isGoogle, countRows, workspaceShort, workspaceLabel, rowSub, companyTypeLabel, companyUrl, legalLabel, emailRule, emailKindLabel,
@@ -474,5 +516,6 @@
     SECTOR_PRESETS, cleanSector, matchSector, sectorsFrom, searchLinks,
     validUrl, parseShared, validApiUrl, slug, planGrid, planLabel,
     CSV_COLUMNS, csvCell, toCsv, mergeBySite, usage, sectorOptions, resolveSector, leadLines,
+    evidenceRows, speedLines, recheckSummary,
   };
 });

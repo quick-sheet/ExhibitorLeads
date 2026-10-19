@@ -53,7 +53,12 @@ This is a guide, not legal advice.
 2. Wait about a minute.
 3. Fully close the app and reopen it. If it still looks the same, close and reopen once more.
 
-If `Code.gs` changed in a way that affects how companies are matched, results that were not confirmed (by the site, or by you) are checked again once, automatically, the first time the sheet is used after the new version is deployed. Confirmed ones are never touched.
+If a release changes how companies are matched, it either checks the unconfirmed results again by itself the first time the sheet is used (confirmed ones are never touched), or leaves that to you. Release 6 leaves it to you, so you can try it on one exhibition first:
+
+1. Deploy the new `Code.gs`, then update the app files.
+2. Open one exhibition, choose the menu (three dots), then **Check the N “to check” again**.
+3. When it finishes, open **Settings**. **How companies were matched** shows which rule confirmed each business, and **Checking the “to check” ones again** shows the counts before and now. Open a few businesses to read their evidence.
+4. If you are happy, Settings has **Check them all again** for every exhibition. **Include consent needed** goes further and is rarely worth it.
 
 Each release bumps two markers together: `core.js?v=N` in `index.html` and the cache name `exhibitorleads-vN` in `sw.js`. If `Code.gs` changed, also go to **Deploy, Manage deployments**, tap the pencil, set Version to **New version** and **Deploy**. That keeps the same address.
 
@@ -73,6 +78,8 @@ Each release bumps two markers together: `core.js?v=N` in `index.html` and the c
 - Pages are read politely: the app obeys each site's `robots.txt`, and anything it asks bots not to read is skipped.
 - Contact names and emails come from company websites, so they are patchy. Emails are never guessed. A Companies House director is shown, labelled, only when a company is confirmed.
 - Sites that build their pages with JavaScript give little to read. The detail says so. For these the usual terms and privacy addresses are tried as well, which costs a few extra requests for exhibitors with no company number on their home page.
+- A company counts as confirmed only on strong evidence from its own website: a company number the register holds under a fitting name (for example “Registered Company: 08756928”, never a VAT number), a legal name such as “We are Ickle Bubba Ltd” that the register holds exactly, or the registered postcode written on its pages beside a similar name. A similar name alone stays “to check”, and says when the website names a different company. A wrongly confirmed company costs more than one extra tap, so doubtful ones are left for you.
+- To save time, one website's home page, mail records and company search go out together, and its terms and privacy pages are read two at a time. This uses a few more web requests but waits for them together. Settings has a **Speed** section with the average time per business, where it goes, and the slowest sites.
 - Sole traders are not on the Companies House register, so they cannot be confirmed and stay as consent needed.
 - Eight colour themes are in Settings: four dark (Harbour, Graphite, Forest, Aubergine) and four light (Porcelain, Stone, Sage, Sky). Harbour is the default. Every theme keeps its text at a readable contrast.
 - The **plus**, **pencil** and **download** icons beside a sector's name add an exhibition, rename the sector (changing all its exhibitions at once) and download its CSV. Choose a name that already exists to join two sectors together.

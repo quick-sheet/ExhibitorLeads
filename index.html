@@ -293,6 +293,17 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 .leads .lk.consent { background: var(--st-consent); }
 .leads strong { font-weight: 600; }
 
+/* How matches were made, speed and rechecks, in Settings */
+.ev { display: grid; gap: 8px; margin-top: 10px; }
+.ev-row { display: grid; grid-template-columns: 12px 1fr auto; gap: 10px; align-items: center; font-size: 14px; color: var(--ink-2); }
+.ev-row b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.sp-row { margin-top: 10px; }
+.sp-row .use-row { margin-bottom: 4px; }
+.rc-grid { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px 14px; align-items: center; margin-top: 10px; font-size: 14px; color: var(--ink-2); }
+.rc-grid b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; text-align: right; }
+.rc-grid .arrow { color: var(--ink-3); }
+.rc-grid .lab { display: flex; gap: 10px; align-items: center; }
+.rc-grid .head { font-size: 12.5px; color: var(--ink-3); text-align: right; }
 /* Colour theme and usage, both in Settings */
 .use { margin-top: 12px; }
 .use-row { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; font-size: 14px; color: var(--ink-2); }
@@ -361,7 +372,7 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="core.js?v=5"></script>
+<script src="core.js?v=6"></script>
 <script>
 (() => {
 'use strict';
@@ -476,6 +487,15 @@ function setUsage(u) {
   renderNotices();
   const box = $('#usageBox');
   if (box && sheet.open) box.outerHTML = usageHtml();
+}
+
+// The sheet's own summary of its checks (how matches were made, speed, rechecks). Optional: Settings simply shows what it last had.
+// A phone updated before the Apps Script was: the sheet does not know the new action yet.
+const oldScript = (e) => (/unknown action/i.test(e.message || '') ? 'Your Apps Script needs its new version first. The README says how (Update).' : e.message);
+
+async function refreshStatus() {
+  if (!S.api) return;
+  try { const j = await call('status'); S.status = j; put('status', j); setUsage(j.usage); } catch (e) { /* not needed to carry on */ }
 }
 
 async function refreshShows() {
@@ -889,6 +909,7 @@ function openShowMenu(s) {
       <button type="button" data-act="paste">Paste a list<small>Add exhibitors by hand</small></button>
       ${s.urls.length ? '<button type="button" data-act="load">Load the list again<small>New exhibitors are added, existing ones are kept</small></button>' : ''}
       ${c.likely ? `<button type="button" data-act="confirm-likely">Confirm ${c.likely} likely ${c.likely === 1 ? 'match' : 'matches'}<small>Same name on Companies House, active. Treats them as confirmed</small></button>` : ''}
+      ${c.check ? `<button type="button" data-act="recheck-weak">Check the ${c.check} “to check” again<small>Uses the newer company rules. Ones you confirmed are kept</small></button>` : ''}
       ${c.total ? '<button type="button" data-act="recheck-all">Check everything again<small>Runs the website, email and company checks again</small></button>' : ''}
       ${filtered && c.total ? '<button type="button" data-act="csv-shown">Download only what is shown<small>Uses the current filter and search</small></button>' : ''}
       ${S.status && S.status.sheetUrl ? `<button type="button" data-act="open-sheet">Open the Google Sheet<small>Where all of this is kept</small></button>` : ''}
@@ -924,6 +945,34 @@ function usageHtml() {
     <p class="hint">Counts this app only. Google counts everything on your account, so its own figure may be a little higher. You will see a warning on the main screen above 70%.</p></div>`;
 }
 
+function insightHtml() {
+  const st = S.status;
+  if (!S.api || !st) return '<div id="insightBox"></div>';
+  const ev = C.evidenceRows(st.evidence), sp = C.speedLines(st.speed), rc = C.recheckSummary(st.recheck);
+  const totalCheck = totals().check;
+  let h = '<div id="insightBox">';
+  if (ev) {
+    h += `<h3>How companies were matched</h3><div class="ev">${ev.rows.map((r) => `<div class="ev-row"><span class="dot ${r.tone}"></span><span>${esc(r.label)}</span><b>${r.n.toLocaleString('en-GB')}</b></div>`).join('')}</div>
+      <p class="hint">Across ${ev.total.toLocaleString('en-GB')} checked businesses. A number, an exact legal name or a matching postcode on its own website counts as confirmed. A similar name alone stays “to check”. Open any business to see its evidence.</p>`;
+  }
+  if (sp) {
+    h += `<h3>Speed</h3><p>Each business takes about <strong>${esc(sp.per)}</strong> and ${esc(sp.requests)} web requests (last ${sp.n}), so roughly ${esc(sp.perHour)} an hour.</p>
+      ${sp.parts.map((q) => `<div class="sp-row"><div class="use-row"><span>${esc(q.label)}</span><b>${esc(q.text)}</b></div><div class="bar" role="img" aria-label="${esc(q.label)}: ${esc(q.text)}"><i style="width:${q.width}%"></i></div></div>`).join('')}
+      <p class="hint">The home page, mail records and company search go out together, so their time shows under Home page.${sp.slowest.length ? ' Slowest sites lately: ' + sp.slowest.map((x) => esc(x.host) + ' (' + esc(x.text) + ')').join(', ') + '.' : ''}</p>`;
+  }
+  if (rc) {
+    const sh = rc.scope ? (S.shows.find((x) => x.id === rc.scope) || {}).name : '';
+    h += `<h3>Checking the “to check” ones again</h3><p>${rc.queued ? `${C.plural(rc.queued, 'business', 'businesses')} ${rc.all ? 'that were “to check” or “consent needed”' : 'that were “to check”'} went back in the queue${sh ? ' for ' + esc(sh) : rc.scope ? '' : ' across every exhibition'}.` : 'Nothing needed checking again.'}${rc.pending ? ` <strong>${rc.pending.toLocaleString('en-GB')} still waiting.</strong>` : rc.queued ? ' All done.' : ''}</p>
+      <div class="rc-grid"><span></span><span class="head">Before</span><span></span><span class="head">Now</span>${rc.rows.map((r) => `<span class="lab"><span class="dot ${r.key}"></span>${esc(r.label)}</span><b>${r.before.toLocaleString('en-GB')}</b><span class="arrow" aria-hidden="true">→</span><b>${r.now.toLocaleString('en-GB')}</b>`).join('')}</div>
+      ${rc.gained ? `<p class="hint">${C.plural(rc.gained, 'more business', 'more businesses')} can now be emailed without asking first.</p>` : ''}`;
+  }
+  if (totalCheck) {
+    h += `<h3>Check the “to check” ones again</h3><p>${C.plural(totalCheck, 'business', 'businesses')} across your exhibitions ${totalCheck === 1 ? 'is' : 'are'} marked “to check”. This runs them through the newer company rules. Start with one exhibition from its menu to see the effect first.</p>
+      <div class="actions"><button class="btn" type="button" data-act="recheck-weak-all">Check them all again</button><button class="btn" type="button" data-act="recheck-weak-consent">Include consent needed</button></div>`;
+  }
+  return h + '</div>';
+}
+
 function openSettings() {
   const a = S.api || {};
   openSheet(`${head('Settings')}
@@ -938,6 +987,7 @@ function openSettings() {
     </form>
     ${statusBox()}
     ${usageHtml()}
+    ${insightHtml()}
     <h3>Colour theme</h3>
     ${themeGridHtml()}
     <h3>About</h3>
@@ -949,6 +999,8 @@ function openSettings() {
     const b = $('#statusBox');
     if (b) b.outerHTML = statusBox(); else $('#connectForm').insertAdjacentHTML('afterend', statusBox());
     setUsage(j.usage);
+    const ib = $('#insightBox');
+    if (ib) ib.outerHTML = insightHtml();
   }).catch(() => {});
 }
 
@@ -1187,6 +1239,28 @@ async function act(name, t) {
         catch (e) { toast(e.message); }
       });
     } break;
+    case 'recheck-weak': if (s) {
+      await withBusy(t, async () => {
+        try {
+          const j = await call('recheckWeak', { showId: s.id });
+          await fetchRows(s.id); await refreshStatus(); closeSheet(); E.userPaused = false; updateShow(); ensureChecking();
+          toast(j.queued ? `Checking ${C.plural(j.queued, 'business', 'businesses')} again` : 'Nothing to check again');
+        } catch (e) { toast(oldScript(e)); }
+      });
+    } break;
+    case 'recheck-weak-all': case 'recheck-weak-consent-yes': {
+      await withBusy(t, async () => {
+        try {
+          const j = await call('recheckWeak', name === 'recheck-weak-all' ? {} : { include: 'all' });
+          await refreshShows(); await refreshStatus();
+          if (S.route.v === 'show') await fetchRows(S.route.showId);
+          closeSheet(); E.userPaused = false; if (S.route.v === 'show') { updateShow(); ensureChecking(); }
+          toast(j.queued ? `Checking ${C.plural(j.queued, 'business', 'businesses')} again. Open an exhibition to watch it` : 'Nothing to check again');
+        } catch (e) { toast(oldScript(e)); }
+      });
+      break;
+    }
+    case 'recheck-weak-consent': openConfirm('Include “consent needed” too?', 'These are mostly sole traders and businesses with no company on the register, so rechecking them rarely changes anything. It does use a lot of web requests. Businesses you confirmed are kept.', 'recheck-weak-consent-yes', 'Check them again'); break;
     case 'recheck-all': if (s) {
       await withBusy(t, async () => {
         try { const ids = (S.rows[s.id] || []).map((r) => r.id); await call('recheck', { ids }); await fetchRows(s.id); closeSheet(); E.userPaused = false; updateShow(); ensureChecking(); toast('Checking everything again'); }
