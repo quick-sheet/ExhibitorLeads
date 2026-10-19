@@ -476,6 +476,7 @@
     ['postcode', 'Registered postcode on its website', 'corporate'],
     ['you', 'Confirmed by you', 'corporate'],
     ['same', 'Same name on Companies House', 'check'],
+    ['conflict', 'Same name, but its website names another company', 'check'],
     ['similar', 'Similar name on Companies House', 'check'],
     ['none', 'No company found', 'consent'],
   ];
@@ -501,6 +502,34 @@
     return { n: Math.round(+sp.n), per: per + ' s', requests: one(sp.requests), perHour: commas(hour), parts, slowest };
   }
 
+  /**
+   * The answer to "Why this result?", as something to read and to copy: what the lead says now, what a fresh check says,
+   * and the steps in between. Plain text, so it can be pasted into a message.
+   */
+  function explainText(row, j) {
+    const r = row || {}, x = j || {};
+    const lines = Array.isArray(x.lines) ? x.lines.map((l) => String(l)) : [];
+    const say = (o) => (o && (o.legal || o.legalSrc) ? [o.legal || 'none', o.legalSrc || ''].filter(Boolean).join(': ') : 'no company yet');
+    const saved = say(x.saved), now = say(x.now);
+    const changed = !!(x.saved && x.now && (x.saved.legal !== x.now.legal || x.saved.legalSrc !== x.now.legalSrc || x.saved.emailable !== x.now.emailable));
+    const head = [
+      String(r.name || ''),
+      String(r.website || 'no website'),
+      'Apps Script release ' + (x.build != null ? x.build : 'unknown') + (x.seconds != null ? ', took ' + x.seconds + ' s' : ''),
+      '',
+      'Saved on your sheet: ' + saved,
+      'A fresh check now: ' + now,
+      '',
+    ];
+    return { changed, saved, now, lines, text: head.concat(lines).join('\n').trim() };
+  }
+
+  /** Whether the Apps Script behind the app is older than the app expects. A script that predates the marker reports nothing at all. */
+  function scriptOutdated(build, expect) {
+    if (build == null) return false;          // not asked yet
+    return (+build || 0) < (+expect || 0);
+  }
+
   /** A recheck: where the group of leads stood when it was queued, and where it stands now. */
   function recheckSummary(rc) {
     if (!rc || typeof rc !== 'object') return null;
@@ -516,6 +545,6 @@
     SECTOR_PRESETS, cleanSector, matchSector, sectorsFrom, searchLinks,
     validUrl, parseShared, validApiUrl, slug, planGrid, planLabel,
     CSV_COLUMNS, csvCell, toCsv, mergeBySite, usage, sectorOptions, resolveSector, leadLines,
-    evidenceRows, speedLines, recheckSummary,
+    evidenceRows, speedLines, recheckSummary, explainText, scriptOutdated,
   };
 });

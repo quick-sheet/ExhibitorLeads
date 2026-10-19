@@ -298,6 +298,9 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 .ev-row { display: grid; grid-template-columns: 12px 1fr auto; gap: 10px; align-items: center; font-size: 14px; color: var(--ink-2); }
 .ev-row b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
 .sp-row { margin-top: 10px; }
+.why { margin: 10px 0 0; padding: 12px 14px; border-radius: 14px; background: var(--bg); color: var(--ink-2); font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.why-cmp { display: grid; gap: 4px; margin-top: 10px; font-size: 14px; color: var(--ink-2); }
+.why-cmp b { color: var(--ink); font-weight: 600; }
 .sp-row .use-row { margin-bottom: 4px; }
 .rc-grid { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px 14px; align-items: center; margin-top: 10px; font-size: 14px; color: var(--ink-2); }
 .rc-grid b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; text-align: right; }
@@ -372,7 +375,7 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="core.js?v=6"></script>
+<script src="core.js?v=7"></script>
 <script>
 (() => {
 'use strict';
@@ -411,6 +414,7 @@ const S = {
   filter: 'all', q: '', limit: 200,
   set: Object.assign({ theme: 'harbour', lastSector: '' }, get('settings', {})),
   status: get('status', null),
+  build: get('build', null),
   usage: null,                      // the last 24 hours, from the sheet. Never saved, so it is never stale
   usageHidden: '',
   offline: false, offlineMsg: '',
@@ -492,6 +496,14 @@ function setUsage(u) {
 // The sheet's own summary of its checks (how matches were made, speed, rechecks). Optional: Settings simply shows what it last had.
 // A phone updated before the Apps Script was: the sheet does not know the new action yet.
 const oldScript = (e) => (/unknown action/i.test(e.message || '') ? 'Your Apps Script needs its new version first. The README says how (Update).' : e.message);
+
+// The release of Apps Script code this app expects. Shown in Settings; a warning appears when the script behind the app is older.
+const EXPECT_BUILD = 7;
+
+async function checkBuild() {
+  if (!S.api) return;
+  try { const j = await call('ping', null, 20000); S.build = +j.build || 0; put('build', S.build); renderNotices(); } catch (e) { /* offline: keep what we knew */ }
+}
 
 async function refreshStatus() {
   if (!S.api) return;
@@ -630,6 +642,9 @@ function renderNotices() {
   const out = [];
   const dismissed = get('dismissed', {});
   if (S.offline && S.api) out.push(`<div class="notice"><p>${esc(S.offlineMsg || 'Could not reach your sheet')}. Showing what is saved on this phone.</p><button class="link-btn" type="button" data-act="retry">Retry</button></div>`);
+  if (S.api && !S.offline && C.scriptOutdated(S.build, EXPECT_BUILD)) {
+    out.push(`<div class="notice"><p>Your Apps Script is out of date (${S.build ? 'release ' + esc(S.build) : 'an older release'}, this app needs ${EXPECT_BUILD}). Paste the new Code.gs and deploy a new version, or the newer checks will not run.</p><button class="link-btn" type="button" data-act="settings">Details</button></div>`);
+  }
   if (!standalone && !dismissed.install) {
     if (S.installEvt) out.push(`<div class="notice"><p>Add Exhibitor Leads to your home screen for one-tap access.</p><button class="link-btn" type="button" data-act="install">Install</button><button class="x" type="button" data-dismiss="install" aria-label="Dismiss">${ICON.x}</button></div>`);
     else if (isIOS) out.push(`<div class="notice"><p>Add Exhibitor Leads to your Home Screen: tap Share, then Add to Home Screen.</p><button class="x" type="button" data-dismiss="install" aria-label="Dismiss">${ICON.x}</button></div>`);
@@ -843,7 +858,31 @@ function openRow(id) {
     ${kv('Stand', esc(r.stand))}${kv('Category', esc(r.category))}${kv('About', esc(r.blurb))}${kv('Notes', esc(r.note))}
     <div class="actions"><button class="btn primary" type="button" data-act="edit-row" data-id="${esc(r.id)}">Edit details</button>
     <button class="btn" type="button" data-act="recheck" data-id="${esc(r.id)}">Check again</button>
+    ${done ? `<button class="btn" type="button" data-act="explain-row" data-id="${esc(r.id)}">Why this result?</button>` : ''}
     <button class="btn" type="button" data-act="remove-row" data-id="${esc(r.id)}">Remove</button></div>`);
+}
+
+/* Why this result? A check run again without saving, with every page it read and what the register said */
+function openExplain(id, j) {
+  const r = rowById(id) || {};
+  const x = C.explainText(r, j);
+  S.whyText = x.text;
+  openSheet(`${head('Why this result?')}
+    <p class="small">${esc(r.name || '')}. This ran the check again without saving anything.</p>
+    <div class="why-cmp"><span>Saved on your sheet: <b>${esc(x.saved)}</b></span><span>A fresh check now: <b>${esc(x.now)}</b></span></div>
+    ${x.changed ? '<p class="hint">The fresh check differs from what is saved. Use Check again to keep it.</p>' : ''}
+    <pre class="why" id="whyText">${esc(x.lines.join('\n') || 'Nothing was read.')}</pre>
+    <div class="actions"><button class="btn primary" type="button" data-act="copy-why">Copy</button><button class="btn" type="button" data-act="back-to-row" data-id="${esc(id)}">Back</button></div>`);
+}
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) { /* fall back below */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+    document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove();
+    return ok;
+  } catch (e) { return false; }
 }
 
 function openEditRow(id) {
@@ -931,6 +970,7 @@ function statusBox() {
   const st = S.status;
   if (!st) return '';
   return `<div class="status-box" id="statusBox"><p>Connected to your sheet.</p>
+    <p>Apps Script release: ${st.build ? '<strong>' + esc(st.build) + '</strong>' : '<strong>older than release ' + EXPECT_BUILD + '</strong>'}${C.scriptOutdated(st.build || 0, EXPECT_BUILD) ? '. This app expects ' + EXPECT_BUILD + '. Paste the new Code.gs and choose Deploy, Manage deployments, the pencil, New version' : ', up to date'}</p>
     <p>Companies House key: ${st.ch ? 'set' : '<strong>not set</strong>, so company checks will say consent needed'}</p>
     <p>Background checks: ${st.trigger ? 'on, every 10 minutes' : '<strong>off</strong>. Run setup again in Apps Script'}</p></div>`;
 }
@@ -953,7 +993,7 @@ function insightHtml() {
   let h = '<div id="insightBox">';
   if (ev) {
     h += `<h3>How companies were matched</h3><div class="ev">${ev.rows.map((r) => `<div class="ev-row"><span class="dot ${r.tone}"></span><span>${esc(r.label)}</span><b>${r.n.toLocaleString('en-GB')}</b></div>`).join('')}</div>
-      <p class="hint">Across ${ev.total.toLocaleString('en-GB')} checked businesses. A number, an exact legal name or a matching postcode on its own website counts as confirmed. A similar name alone stays “to check”. Open any business to see its evidence.</p>`;
+      <p class="hint">Across ${ev.total.toLocaleString('en-GB')} checked businesses. A number, an exact legal name or a matching postcode on its own website counts as confirmed. A similar name alone stays “to check”. Open any business and tap Why this result? to see what was read.</p>`;
   }
   if (sp) {
     h += `<h3>Speed</h3><p>Each business takes about <strong>${esc(sp.per)}</strong> and ${esc(sp.requests)} web requests (last ${sp.n}), so roughly ${esc(sp.perHour)} an hour.</p>
@@ -1013,6 +1053,7 @@ async function connect(url, token) {
   try {
     const st = await call('status', null, 30000);
     S.status = st; put('status', st);
+    S.build = +st.build || 0; put('build', S.build);
     put('api', S.api);
     S.offline = false;
     await refreshShows();
@@ -1276,6 +1317,15 @@ async function act(name, t) {
     }
     case 'company-no': openCompanyNo(d.id); break;
     case 'back-to-row': openRow(d.id); break;
+    case 'explain-row': {
+      await withBusy(t, async () => {
+        toast('Checking again without saving. This takes about 10 seconds');
+        try { const j = await call('explain', { id: d.id }, 100000); openExplain(d.id, j); }
+        catch (e) { toast(oldScript(e)); }
+      });
+      break;
+    }
+    case 'copy-why': toast((await copyText(S.whyText || '')) ? 'Copied' : 'Could not copy. Press and hold the text to select it'); break;
     case 'edit-row': openEditRow(d.id); break;
     case 'recheck': {
       await withBusy(t, async () => {
@@ -1405,7 +1455,7 @@ function start() {
   }
   history.replaceState({ r: S.route }, '');
   render();
-  if (S.api) refreshShows().then(() => { if (S.shared) { const p = S.shared; S.shared = null; openAddShow(p); } });
+  if (S.api) { checkBuild(); refreshShows().then(() => { if (S.shared) { const p = S.shared; S.shared = null; openAddShow(p); } }); }
   else if (S.shared) toast('Connect your sheet first, then share the page again');
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 }

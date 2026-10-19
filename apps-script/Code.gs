@@ -13,6 +13,8 @@
  */
 
 const VERSION = 1;
+// Which release of this code is live. The app shows it in Settings and warns when it is older than the app expects.
+const BUILD = 7;
 const TZ = 'Europe/London';
 const UA = 'ExhibitorLeads/1 (personal prospecting tool; Google Apps Script)';
 const MAX_BODY = 600000;
@@ -35,6 +37,14 @@ const PROTO = 2;
 // Where terms and privacy pages usually live, tried when a site's own links do not lead to them.
 const PAGE_PAIR = 2;   // pages of one website read together
 const LEGAL_GUESSES = ['/privacy-policy', '/terms-and-conditions', '/terms-of-use', '/terms', '/privacy', '/legal'];
+// Shop and site builders put their legal pages in the same few places, so once the home page shows which one a site uses these are worth a try.
+const PLATFORM_GUESSES = {
+  shopify: ['/policies/terms-of-service', '/policies/privacy-policy', '/pages/terms-and-conditions', '/pages/privacy-policy', '/pages/terms-conditions', '/pages/terms'],
+  wordpress: ['/terms-and-conditions/', '/terms-conditions/', '/privacy-policy/', '/terms-of-use/', '/terms/'],
+  wix: ['/terms-conditions', '/terms-and-conditions', '/privacy-policy'],
+  squarespace: ['/terms-and-conditions', '/terms', '/privacy-policy'],
+};
+const EXTRA_PAGES = 8;   // most pages read on one website after its home page
 
 const SHOW_COLS = ['id', 'name', 'sector', 'start', 'end', 'urls', 'status', 'statusNote', 'addedAt', 'loadedAt'];
 const EX_COLS = ['id', 'showId', 'name', 'stand', 'category', 'blurb', 'website', 'domain', 'detailUrl',
@@ -53,7 +63,7 @@ const GATEWAY = /(mimecast|pphosted|proofpoint|barracuda|messagelabs|symantecclo
  * Web app entry points
  * ============================================================ */
 
-function doGet() { return json({ ok: true, app: 'Exhibitor Leads', v: VERSION }); }
+function doGet() { return json({ ok: true, app: 'Exhibitor Leads', v: VERSION, build: BUILD }); }
 
 function doPost(e) {
   let b = {};
@@ -64,10 +74,10 @@ function doPost(e) {
 function json(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 
 function route(action, p) {
-  const routes = { ping, status, list, saveShow, deleteShow, loadShow, pasteList, rows, enrich, confirmMatch, confirmLikely, editRow, recheck, recheckWeak, deleteRows };
+  const routes = { ping, status, list, saveShow, deleteShow, loadShow, pasteList, rows, enrich, confirmMatch, confirmLikely, editRow, recheck, recheckWeak, deleteRows, explain };
   p = p || {};
   try {
-    if (action === 'ping') return { ok: true, v: VERSION };
+    if (action === 'ping') return { ok: true, v: VERSION, build: BUILD };
     if (!routes[action]) return { error: 'Unknown action' };
     if (!prop('TOKEN')) return { error: 'Not set up yet. In Apps Script, choose setup and press Run.' };
     if (typeof p.token !== 'string' || !safeEq(p.token, prop('TOKEN'))) { Utilities.sleep(700); return { error: 'Unauthorised' }; }
@@ -487,15 +497,20 @@ function nameInText(name, text) {
  * (or that matches the exhibitor's name) wins. A lone number that exists on the register is accepted. Several
  * numbers with no name to back any of them is too uncertain, so none is taken.
  */
-function verifyCandidates(cands, name) {
+function verifyCandidates(cands, name, say) {
   let first = null, looked = 0;
+  const tell = say || (() => {});
   for (let i = 0; i < cands.length && looked < 3; i++) {
     const p = chProfile(cands[i].n);
     looked++;
-    if (!p) continue;
-    if (nameInText(p.name, cands[i].text) || nameScore(name, p.name) >= 0.6) return p;
+    if (!p) { tell('Companies House has no company numbered ' + cands[i].n); continue; }
+    const onPage = nameInText(p.name, cands[i].text), close = nameScore(name, p.name) >= 0.6;
+    tell('Companies House number ' + cands[i].n + ' is ' + p.name + ' (' + (p.status || '?') + ', ' + (p.pc || 'no postcode') + '). Its name ' + (onPage ? 'is' : 'is not') + ' on the page that gave the number, and it ' + (close ? 'is' : 'is not') + ' close to the exhibitor name');
+    if (onPage || close) return p;
     if (!first) first = p;
   }
+  if (cands.length === 1 && first) tell('The only number on its pages, and it exists on the register, so it is taken');
+  else if (cands.length > 1 && !first) tell('Several numbers and none of them names this business, so none is taken');
   return cands.length === 1 ? first : null;
 }
 
@@ -542,10 +557,20 @@ function findLinks(html, base) {
   return { contact, legal: core.concat(more), core: core.length };
 }
 
+/** Which site builder made a page, from tell-tale addresses in its code. Decides which legal page addresses are worth trying. */
+function detectPlatform(html) {
+  const h = String(html || '');
+  if (/cdn\.shopify\.com|myshopify\.com|Shopify\.theme|shopify-section/i.test(h)) return 'shopify';
+  if (/\/wp-content\/|\/wp-includes\/|wp-json/i.test(h)) return 'wordpress';
+  if (/wixstatic\.com|parastorage\.com|X-Wix-|wix-code/i.test(h)) return 'wix';
+  if (/squarespace\.com|static1\.squarespace|sqsp\.net/i.test(h)) return 'squarespace';
+  return '';
+}
+
 function scanPage(html, url) {
   const text = stripTags(html);
   const numbers = extractCompanyNumbers(text);
-  return { emails: extractEmails(html), phones: extractPhones(html), number: numbers[0] || '', numbers, postcodes: extractPostcodes(text), text, person: extractPerson(html), links: findLinks(html, url), textLen: text.length };
+  return { emails: extractEmails(html), phones: extractPhones(html), number: numbers[0] || '', numbers, postcodes: extractPostcodes(text), text, person: extractPerson(html), links: findLinks(html, url), textLen: text.length, platform: detectPlatform(html) };
 }
 
 /* ============================================================
@@ -777,10 +802,23 @@ function reqOptions(opts) {
   return o;
 }
 
+/**
+ * A very long page (a shop or page-builder home page can carry most of a megabyte of scripts and styles) is cut down
+ * to its words first, so the footer, where the company details usually are, is not the part that gets lost.
+ * If it is still too long, the start and the end are kept.
+ */
+function shrinkBody(b) {
+  if (b.length <= MAX_BODY) return b;
+  b = b.replace(/<(script|style|noscript|svg)\b(?![^>]*ld\+json)[^>]*>[\s\S]*?<\/\1>/gi, ' ').replace(/<!--[\s\S]*?-->/g, ' ');
+  if (b.length <= MAX_BODY) return b;
+  const head = Math.floor(MAX_BODY * 0.55);
+  return b.slice(0, head) + ' ' + b.slice(b.length - (MAX_BODY - head));
+}
+
 function parseResp(r) {
-  let body = '';
-  try { body = String(r.getContentText() || '').slice(0, MAX_BODY); } catch (e) { body = ''; }
-  return { code: r.getResponseCode(), headers: lowerKeys(r.getAllHeaders ? r.getAllHeaders() : r.getHeaders()), body };
+  let body = '', size = 0;
+  try { body = String(r.getContentText() || ''); size = body.length; body = shrinkBody(body); } catch (e) { body = ''; }
+  return { code: r.getResponseCode(), headers: lowerKeys(r.getAllHeaders ? r.getAllHeaders() : r.getHeaders()), body, size };
 }
 
 function http(url, opts) {
@@ -832,6 +870,8 @@ function robotsStore(host, r, ctx) {
   else if (r.code >= 300 && r.code < 400) groups = 'all';
   else groups = 'down';   // unreachable or server error: treated as "do not read", as the standard says
   ctx.robots[host] = groups;
+  ctx.robotsSaid = ctx.robotsSaid || {};
+  ctx.robotsSaid[host] = r.code ? 'answered ' + r.code : (r.error ? clip(r.error, 60) : 'did not answer');
   try { const j = JSON.stringify(groups); if (j.length < 90000) CacheService.getScriptCache().put('rb:' + host, j, groups === 'down' ? 600 : 6 * 3600); } catch (e) { /* cache is optional */ }
   return groups;
 }
@@ -898,7 +938,7 @@ function fetchPages(urls, ctx, maxHops, side) {
       }
       const type = String(r.headers['content-type'] || '');
       if (type && !/html|xml|text/i.test(type)) out[i] = { blocked: false, code: r.code, body: '', url: cur[i], error: 'Not a web page' };
-      else out[i] = { blocked: false, code: r.code, body: r.body, url: cur[i], error: r.error };
+      else out[i] = { blocked: false, code: r.code, body: r.body, url: cur[i], error: r.error, size: r.size };
     });
     todo = next;
   }
@@ -909,6 +949,23 @@ function fetchPages(urls, ctx, maxHops, side) {
 }
 
 function fetchPage(url, ctx, maxHops) { return fetchPages([url], ctx, maxHops)[0]; }
+
+/** Why a page gave nothing, in plain words. Empty when it was read. */
+function pageWhy(pg, ctx) {
+  if (pg.late) return 'ran out of time';
+  if (pg.blocked) {
+    const said = ((ctx && ctx.robotsSaid) || {})[hostOf(pg.url)];
+    return pg.down ? 'its robots.txt could not be fetched' + (said ? ' (' + said + ')' : '') : 'its robots.txt asks automated tools to stay away';
+  }
+  if (pg.error) return clip(pg.error, 60);
+  if (pg.code < 200 || pg.code >= 300) return 'the site answered ' + pg.code + (/^(403|406|429|430|503)$/.test(String(pg.code)) ? ' (it turns away automated requests)' : '');
+  if (!pg.body) return 'the page was empty';
+  return '';
+}
+
+/** "https://x.com/policies/terms-of-service?x=1" becomes "/policies/terms-of-service" */
+function pathOf(u) { const p = parseUrl(u); return p ? (p.path || '/') : String(u || ''); }
+const kb = (n) => (n >= 1000 ? Math.round(n / 1000) + ' KB' : n + ' bytes');
 
 function newCtx() { return { robots: {}, mail: {}, donors: null, pages: {} }; }
 
@@ -1008,11 +1065,15 @@ function chSearch(name) {
   const r = chGet(chSearchPath(name));
   if (r.code !== 200 || !r.json) throw new Error('Companies House search answered ' + r.code);
   let best = null;
+  const all = [];
   (r.json.items || []).forEach((it) => {
     const s = nameScore(name, it.title);
     const live = it.company_status === 'active' ? 0.05 : 0;
-    if (!best || s + live > best.score) best = { score: s + live, raw: s, c: chShape(it) };
+    const c = chShape(it);
+    all.push({ raw: s, c });
+    if (!best || s + live > best.score) best = { score: s + live, raw: s, c };
   });
+  if (best) best.all = all;   // everything the search returned, for the postcode check
   return best;
 }
 
@@ -1066,6 +1127,7 @@ function enrichOne(ex, ctx) {
   const patch = {};
   let site = ex.website;
   let late = false;   // set when this exhibitor used up its time allowance and some pages were skipped
+  const why = ctx.why = [];   // what this check read and decided, in plain words (shown by "Why this result?")
   _pre = {};
   _cat = 'detail';
 
@@ -1077,6 +1139,7 @@ function enrichOne(ex, ctx) {
     else if (d.body && d.code >= 200 && d.code < 300) {
       const det = parseDetail(d.body, d.url);
       if (det.website) { site = det.website; patch.website = site; patch.domain = siteDomain(site); }
+      if (why.length < 70) why.push('Show page ' + d.url + (det.website ? ' gave the website ' + det.website : ' has no website on it'));
       if (det.phone && !ex.phone) { patch.phone = det.phone; patch.phoneSrc = 'show page'; }
     } else notes.push('Could not read the exhibitor page on the show site');
   }
@@ -1100,18 +1163,33 @@ function enrichOne(ex, ctx) {
   const names = [];     // company names it writes down, such as "Ickle Bubba Ltd"
   const pcs = [];       // postcodes on its pages
   const tried = {};
+  const seen = [];      // every page asked for: { url, ok, why, gone }, for the trace and the note
+  let noneNoted = false;   // the note already says nothing was found
+  const say = (line) => { if (why.length < 70) why.push(clip(line, 400)); };
   const strong = () => cands.length > 0 || names.length > 0;
   // A legal name counts only if it shares enough of the exhibitor's own name: two words when the name has two or more
   // (so a partner's "Little Angels Nursery Ltd" is not taken for "Little Dreamers"), otherwise the one word it has.
   const exKeys = normKey(ex.name).split(' ').filter(Boolean);
   const nameFits = (n) => normKey(n).split(' ').filter((t) => exKeys.indexOf(t) >= 0).length >= Math.min(2, exKeys.length);
-  const addPage = (s) => {
-    s.emails.forEach((e) => { if (!emails.some((x) => x.email === e.email)) emails.push(e); });
-    s.phones.forEach((q) => { if (phones.indexOf(q) < 0) phones.push(q); });
-    s.numbers.forEach((n) => { if (!cands.some((c) => c.n === n)) cands.push({ n, text: s.text }); });
-    legalNameStatements(s.text, ex.name).forEach((n) => { if (nameFits(n) && !names.some((x) => normKey(x) === normKey(n))) names.push(n); });
-    s.postcodes.forEach((c) => { if (pcs.indexOf(c) < 0) pcs.push(c); });
-    if (!person && s.person) person = s.person;
+  const scan = (pg) => { const sc = scanPage(pg.body, pg.url); sc.names = legalNameStatements(sc.text, ex.name); return sc; };
+  const addPage = (sc) => {
+    sc.emails.forEach((e) => { if (!emails.some((x) => x.email === e.email)) emails.push(e); });
+    sc.phones.forEach((q) => { if (phones.indexOf(q) < 0) phones.push(q); });
+    sc.numbers.forEach((n) => { if (!cands.some((c) => c.n === n)) cands.push({ n, text: sc.text }); });
+    sc.names.forEach((n) => { if (nameFits(n) && !names.some((x) => normKey(x) === normKey(n))) names.push(n); });
+    sc.postcodes.forEach((c) => { if (pcs.indexOf(c) < 0) pcs.push(c); });
+    if (!person && sc.person) person = sc.person;
+  };
+  // What happened to a page, for the trace and for the note on the lead.
+  const record = (pg, sc) => {
+    const w = pageWhy(pg, ctx);
+    seen.push({ url: pg.url, ok: !w, why: w, gone: pg.code === 404 || pg.code === 410, late: !!pg.late });
+    if (w) { say('Could not read ' + pg.url + ': ' + w); return; }
+    const bits = [];
+    if (sc.numbers.length) bits.push('company number ' + sc.numbers.join(', '));
+    if (sc.names.length) bits.push('names ' + sc.names.join('; '));
+    if (sc.postcodes.length) bits.push('postcodes ' + sc.postcodes.slice(0, 4).join(', '));
+    say('Read ' + pg.url + ' · ' + pg.code + ' · ' + kb(pg.size || pg.body.length) + ' · ' + (bits.length ? bits.join(' · ') : 'no company details on it'));
   };
   // Reads these pages together, then takes them in order, stopping once one has settled which company it is
   // (the same result as reading them one at a time, only quicker).
@@ -1120,15 +1198,18 @@ function enrichOne(ex, ctx) {
     todo.forEach((u) => { tried[u] = 1; });
     if (!todo.length) return;
     _cat = 'pages';
-    const pgs = fetchPages(todo, ctx, 2);
+    const pgs = fetchPages(todo, ctx, 3);
     for (let i = 0; i < pgs.length; i++) {
       const pg = pgs[i];
-      if (pg.late) { late = true; continue; }
-      if (pg.blocked || !pg.body || pg.code < 200 || pg.code >= 300) continue;
-      addPage(scanPage(pg.body, pg.url));
-      if (strong()) break;
+      if (pg.late) { late = true; record(pg); continue; }
+      if (pg.blocked || !pg.body || pg.code < 200 || pg.code >= 300) { record(pg); continue; }
+      const sc = scan(pg);
+      record(pg, sc);
+      addPage(sc);
+      if (strong()) { for (let j = i + 1; j < pgs.length; j++) say('Fetched with it, not needed: ' + pgs[j].url); break; }
     }
   };
+  say('Checking ' + ex.name + (site ? ' · ' + site : ' · no website yet'));
   if (domain) {
     _cat = 'site';
     const wantCh = ex.legalSrc !== 'Confirmed by you' && !!prop('CH_KEY');
@@ -1136,26 +1217,31 @@ function enrichOne(ex, ctx) {
     const hp = fetchPages([site + '/'], ctx, undefined, side);
     hp.side.forEach((r, i) => { _pre[side[i].key] = r; });
     const home = hp[0];
-    if (home.late) late = true;
-    else if (home.blocked) notes.push(home.down ? 'Website did not respond, so it was not read' : 'Site asks automated tools not to read it');
+    if (home.late) { late = true; record(home); }
+    else if (home.blocked) { notes.push(home.down ? 'Website did not respond, so it was not read' : 'Site asks automated tools not to read it'); record(home); }
     else if (home.code >= 200 && home.code < 300 && home.body) {
       const pageHost = (parseUrl(home.url) || {}).host;
       tried[home.url] = 1;
-      const s = scanPage(home.body, home.url);
+      const s = scan(home);
+      record(home, s);
       addPage(s);
       if (s.textLen < 200) notes.push('Site loads its content with JavaScript, so little could be read');
       const list = [];
       if (!emails.length && s.links.contact) list.push(s.links.contact);
       if (!strong() && wantCh) {
-        s.links.legal.slice(0, 3).forEach((u) => list.push(u));
+        // its own links to terms and privacy first, then the usual addresses for the kind of site it is, then its other policy pages
         const origin = originOf(home.url);
-        LEGAL_GUESSES.slice(0, s.links.core === 0 ? 4 : s.links.core === 1 ? 2 : 0).forEach((g) => list.push(origin + g));
+        s.links.legal.slice(0, 4).forEach((u) => list.push(u));
+        (PLATFORM_GUESSES[s.platform] || []).concat(LEGAL_GUESSES).slice(0, s.links.core === 0 ? 5 : s.links.core === 1 ? 3 : 0).forEach((g) => list.push(origin + g));
+        s.links.legal.slice(4).forEach((u) => list.push(u));
       }
+      const once = {}, todoList = list.filter((u) => { const k = pathOf(u).replace(/\/+$/, '').toLowerCase(); if (once[k] || k === '' || tried[u]) return false; once[k] = 1; return true; }).slice(0, EXTRA_PAGES);
+      if (s.platform) say('Looks like a ' + s.platform + ' site');
       // two at a time: the first two (privacy and terms, nearly always) usually settle it, so the rest are only read if they do not
-      for (let i = 0; i < list.length && !late; i += PAGE_PAIR) { if (i > 0 && strong()) break; readMany(list.slice(i, i + PAGE_PAIR)); }
-      if (pageHost && emails.length === 0 && !cands.length && s.textLen >= 200) notes.push('No email or company number found on the pages read');
-    } else notes.push('Website did not open' + (home.code ? ' (' + home.code + ')' : ''));
-  } else if (!site && !late) notes.push('No website');
+      for (let i = 0; i < todoList.length && !late; i += PAGE_PAIR) { if (i > 0 && strong()) break; readMany(todoList.slice(i, i + PAGE_PAIR)); }
+      if (pageHost && emails.length === 0 && !cands.length && s.textLen >= 200) { notes.push('No email or company number found on the pages read'); noneNoted = true; }
+    } else { notes.push('Website did not open' + (home.code ? ' (' + home.code + ')' : '')); record(home); }
+  } else if (!site && !late) { notes.push('No website'); say('No website to read'); }
 
   // 4. Phone, email, contact. Anything already there (typed by you, or from the show) is kept.
   if (!ex.phone && phones[0]) { patch.phone = phones[0]; patch.phoneSrc = 'website'; }
@@ -1184,10 +1270,18 @@ function enrichOne(ex, ctx) {
     try {
       let co = null, how = '', legal = 'none';
       const looked = {};
-      const lookup = (q) => { const k = normKey(q); if (!(k in looked)) looked[k] = chSearch(k === normKey(ex.name) ? ex.name : q); return looked[k]; };   // one search per name
+      const lookup = (q) => {
+        const k = normKey(q);
+        if (!(k in looked)) {
+          const h = chSearch(k === normKey(ex.name) ? ex.name : q);
+          looked[k] = h;
+          say('Companies House search for “' + q + '”: ' + (h ? h.c.name + ' (' + h.c.no + ', ' + (h.c.status || '?') + ', ' + (h.c.pc || 'no postcode') + '), name match ' + Math.round(h.raw * 100) + '%' : 'nothing found'));
+        }
+        return looked[k];
+      };   // one search per name
       // Evidence, strongest first. Anything weaker than these leaves the lead as "to check" for you to decide.
       //  1. a company number on its own pages that the register has, under a name that fits
-      if (cands.length) { co = verifyCandidates(cands, ex.name); if (co) { legal = 'verified'; how = 'Company number on its website'; } }
+      if (cands.length) { co = verifyCandidates(cands, ex.name, say); if (co) { legal = 'verified'; how = 'Company number on its website'; } }
       //  2. its pages name the company behind the site ("We are X Ltd") and the register holds exactly that name
       //     (Companies House does not allow two companies the same name, so an exact match is one company)
       if (!co) {
@@ -1202,17 +1296,32 @@ function enrichOne(ex, ctx) {
           co = hit.c; legal = hit.raw >= 1 && co.status === 'active' ? 'likely' : 'possible'; how = hit.raw >= 1 ? 'Same name on Companies House' : 'Similar name on Companies House';
           //  3. the registered office postcode is written on its own pages, beside a name that fits
           if (co.pc && pcs.indexOf(co.pc) >= 0) { legal = 'verified'; how = 'Registered postcode on its website matches: ' + co.pc; }
-          //  otherwise say if its pages name a different company from the one the register gave
-          else if (names.length && !names.some((n) => nameScore(n, co.name) >= 0.9)) how += '. Its website names ' + names[0] + ', which is not the name on this record';
+          else {
+            //  otherwise say if its pages name a different company from the one the register gave. That is no longer "likely":
+            //  the business seems to trade as another legal entity, so it is left for you to decide rather than offered for bulk confirming
+            if (names.length && !names.some((n) => nameScore(n, co.name) >= 0.9)) {
+              how += '. Its website names ' + names[0] + ', which is not the name on this record';
+              if (legal === 'likely') legal = 'possible';
+            }
+            if (co.pc && pcs.length) how += '. Postcodes on its pages: ' + pcs.slice(0, 2).join(', ') + '. The register has ' + co.pc;
+          }
         }
+      }
+      //  3b. none of that settled it, but another company the search returned is registered at a postcode written on its pages
+      if (legal !== 'verified' && pcs.length) {
+        const first = looked[normKey(ex.name)] || null;
+        const alt = first ? first.all.filter((x) => x.c.pc && pcs.indexOf(x.c.pc) >= 0 && x.raw >= 0.6).sort((a, b) => b.raw - a.raw)[0] : null;
+        if (alt) { co = alt.c; legal = 'verified'; how = 'Registered postcode on its website matches: ' + co.pc; say('Another company in the search results is registered at ' + co.pc + ', which is written on its pages: ' + co.name); }
       }
       if (co) {
         patch.companyNo = co.no; patch.companyName = co.name; patch.companyType = co.type; patch.companyStatus = co.status; patch.companyAddr = co.addr;
         patch.legal = legal; patch.legalSrc = how; patch.emailable = emailableFor(legal, co.status, co.type, co.no);
+        say('Result: ' + legal + '. ' + how);
         if (legal !== 'possible') patch.chDirector = chDirectorName(co.no);
         if (legal === 'verified' && !ex.contact && !patch.contact && patch.chDirector) { patch.contact = patch.chDirector; patch.contactSrc = 'Companies House director'; }
       } else {
         Object.assign(patch, { companyNo: '', companyName: '', companyType: '', companyStatus: '', companyAddr: '', chDirector: '', legal: 'none', legalSrc: 'No company found', emailable: 'consent' });
+        say('Result: no company found');
       }
     } catch (err) {
       notes.push(String((err && err.message) || err));
@@ -1221,6 +1330,15 @@ function enrichOne(ex, ctx) {
     }
   }
   if (FREEMAIL.test(emailDomain(email || '')) && patch.emailable === 'consent') notes.push('Personal email address, which often means a sole trader');
+  // For a lead that is still unconfirmed, say what was read, so it is clear whether the evidence was missing or just out of reach.
+  // Pages that simply do not exist (a guessed address) are not worth mentioning.
+  if (patch.legal && patch.legal !== 'verified' && ex.legalSrc !== 'Confirmed by you') {
+    const okN = seen.filter((x) => x.ok).length;
+    if (okN) {
+      const out = seen.filter((x) => !x.ok && !x.gone && !x.late).slice(0, 3).map((x) => pathOf(x.url).replace(/\/+$/, '').split('/').pop() + ' (' + (/could not be fetched/.test(x.why) ? 'robots.txt unreachable' : /robots/.test(x.why) ? 'robots.txt says no' : (/answered (\d+)/.exec(x.why) || [])[1] || clip(x.why, 24)) + ')');
+      notes.push('Read ' + okN + (okN === 1 ? ' page' : ' pages') + (cands.length || names.length || noneNoted ? '' : ' and found no company number or legal name') + (out.length ? '. Could not read ' + out.join(', ') : ''));
+    }
+  }
   if (late) notes.push(LATE_NOTE);
   patch.note = notes.join('. ');
   if (patch.state !== 'error') patch.state = 'done';
@@ -1306,7 +1424,7 @@ function counts(rows) {
 function pubShow(s) { const o = {}; SHOW_COLS.forEach((c) => { o[c] = s[c]; }); o.urls = String(s.urls || '').split(/\s+/).filter(Boolean); return o; }
 function pubEx(r) { const o = {}; EX_COLS.forEach((c) => { if (c !== 'detailUrl') o[c] = r[c]; }); o.blurb = String(r.blurb || '').slice(0, 200); return o; }
 
-function ping() { return { ok: true, v: VERSION }; }
+function ping() { return { ok: true, v: VERSION, build: BUILD }; }
 
 /* ---------- What the checks have been doing: speed, evidence and rechecks (shown in Settings) ---------- */
 
@@ -1338,13 +1456,14 @@ function speedInfo() {
 
 /** How each company match was made, across everything that has been checked. */
 function evidenceInfo(rows) {
-  const e = { number: 0, name: 0, postcode: 0, same: 0, similar: 0, you: 0, none: 0 };
+  const e = { number: 0, name: 0, postcode: 0, same: 0, conflict: 0, similar: 0, you: 0, none: 0 };
   rows.forEach((r) => {
     if (r.state !== 'done' && r.state !== 'error') return;
     const w = String(r.legalSrc || '');
     if (/^Company number on its website/.test(w)) e.number++;
     else if (/^Legal name on its website/.test(w)) e.name++;
     else if (/^Registered postcode on its website/.test(w)) e.postcode++;
+    else if (/^Same name on Companies House/.test(w) && r.legal === 'possible') e.conflict++;
     else if (/^Same name on Companies House/.test(w)) e.same++;
     else if (/^Similar name on Companies House/.test(w)) e.similar++;
     else if (/confirmed by you/i.test(w)) e.you++;
@@ -1391,11 +1510,33 @@ function recheckWeak(p) {
   });
 }
 
+/**
+ * Runs a check on one lead without saving anything, and says in plain words what it read and what it decided.
+ * For working out why a lead is still "to check": was the evidence not there, or out of reach?
+ */
+function explain(p) {
+  const r = readTab('Exhibitors', EX_COLS).find((x) => x.id === p.id);
+  if (!r) throw new Error('Not found');
+  const ctx = newCtx();
+  ctx.donors = {};                       // never borrow another row's result: this shows what the pages say
+  ctx.until = Date.now() + EX_MS;
+  _T = {}; _slow = { ms: 0, host: '' }; _cat = 'web';
+  const t0 = Date.now();
+  const patch = enrichOne(Object.assign({}, r), ctx);
+  const lines = (ctx.why || []).slice();
+  if (r.legalSrc === 'Confirmed by you') lines.unshift('You confirmed this one yourself, so the company is kept as you set it.');
+  return {
+    build: BUILD, seconds: Math.round((Date.now() - t0) / 100) / 10, lines,
+    saved: { legal: r.legal, legalSrc: r.legalSrc, emailable: r.emailable, note: r.note },
+    now: { legal: patch.legal || r.legal, legalSrc: patch.legalSrc || r.legalSrc, emailable: patch.emailable || r.emailable, note: patch.note || '' },
+  };
+}
+
 function status() {
   let trigger = false;
   try { trigger = ScriptApp.getProjectTriggers().some((t) => t.getHandlerFunction() === 'enrichTick'); } catch (e) { trigger = false; }
   const rows = readTab('Exhibitors', EX_COLS);
-  return { ok: true, v: VERSION, ch: !!prop('CH_KEY'), trigger, sheetUrl: db().getUrl(), usage: usageInfo(), speed: speedInfo(), evidence: evidenceInfo(rows), recheck: recheckInfo(rows) };
+  return { ok: true, v: VERSION, build: BUILD, ch: !!prop('CH_KEY'), trigger, sheetUrl: db().getUrl(), usage: usageInfo(), speed: speedInfo(), evidence: evidenceInfo(rows), recheck: recheckInfo(rows) };
 }
 
 function list() {
