@@ -277,6 +277,14 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 .menu.picks button { padding: 12px 0; }
 .menu.picks button.off { opacity: .75; }
 .ex-note { font-size: 13.5px; color: var(--ink-3); margin: 4px 0 0; }
+/* Notification setup steps */
+.steps { list-style: none; counter-reset: st; margin: 14px 0 0; padding: 0; }
+.steps li { counter-increment: st; position: relative; padding: 12px 0 14px 40px; border-bottom: 1px solid var(--line); font-size: 15px; color: var(--ink-2); }
+.steps li:last-child { border-bottom: 0; }
+.steps li::before { content: counter(st); position: absolute; left: 0; top: 12px; width: 26px; height: 26px; border-radius: 50%; background: var(--raise-2); color: var(--ink); display: grid; place-items: center; font-size: 13px; font-weight: 600; }
+.steps li strong { display: block; color: var(--ink); font-weight: 600; margin-bottom: 2px; }
+.steps .btn { margin-top: 8px; }
+.code { display: block; margin-top: 8px; padding: 10px 12px; border-radius: 12px; background: var(--bg); color: var(--ink); font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; user-select: text; }
 .code { display: inline-block; margin-top: 8px; padding: 6px 10px; border-radius: 8px; background: var(--bg); color: var(--ink); font-size: 14px; word-break: break-all; user-select: all; }
 .status-box { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: var(--bg); font-size: 14px; color: var(--ink-2); }
 .status-box p { margin: 2px 0; font-size: 14px; }
@@ -389,7 +397,7 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="core.js?v=8"></script>
+<script src="core.js?v=9"></script>
 <script>
 (() => {
 'use strict';
@@ -401,6 +409,7 @@ if (!C) { document.getElementById('main').innerHTML = LOAD_FAIL; return; }
 const UA = navigator.userAgent;
 const isIOS = /iP(hone|ad|od)/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isAndroid = /Android/.test(UA);
 
 /* ---------- Storage ---------- */
 const P = 'exl.';
@@ -515,7 +524,7 @@ function setUsage(u) {
 const oldScript = (e) => (/unknown action/i.test(e.message || '') ? 'Your Apps Script needs its new version first. The README says how (Update).' : e.message);
 
 // The release of Apps Script code this app expects. Shown in Settings; a warning appears when the script behind the app is older.
-const EXPECT_BUILD = 8;
+const EXPECT_BUILD = 9;
 
 async function checkBuild() {
   if (!S.api) return;
@@ -1039,6 +1048,45 @@ function statusBox() {
     <p>Background checks: ${st.trigger ? 'on, every 10 minutes' : '<strong>off</strong>. Run setup again in Apps Script'}</p></div>`;
 }
 
+/* ---------- Notifications: a message in the ntfy app when a big check finishes and you are not in this app ---------- */
+const NTFY_PLAY = 'https://play.google.com/store/apps/details?id=io.heckel.ntfy', NTFY_APPSTORE = 'https://apps.apple.com/app/ntfy/id1625396347';
+const appUrl = () => new URL('./', location.href).href;
+const randomBytes = (n) => crypto.getRandomValues(new Uint8Array(n));
+
+function notifyHtml() {
+  const st = S.status;
+  if (!S.api || !st) return '<div id="notifyBox"></div>';
+  const n = st.notify;
+  let h = '<div id="notifyBox"><h3>Notifications</h3>';
+  if (!n) h += '<p class="hint">These need release 9 of the Apps Script. Deploy the new version first.</p>';
+  else if (n.on) h += `<p>On. You get a message in the ntfy app when a check of 5 or more exhibitors finishes and you are not in this app.${isIOS ? ' On iPhone, tapping the message opens ntfy, so open Exhibitor Leads from your Home Screen.' : ''}</p>
+      <div class="actions"><button class="btn" type="button" data-act="notify-test">Send test notification</button><button class="btn" type="button" data-act="notify-setup">Setup steps</button><button class="btn" type="button" data-act="notify-off">Turn off</button></div>`;
+  else h += `<p>Get a message on your phone when a big check finishes while you are away from the app. It uses ntfy, a free notification app with no account.</p>
+      <div class="actions"><button class="btn primary" type="button" data-act="notify-setup">Set up notifications</button></div>`;
+  return h + '</div>';
+}
+
+async function openNotifySetup() {
+  const have = S.status && S.status.notify && S.status.notify.topic;
+  const topic = have || C.makeTopic(randomBytes);
+  try { await call('setNotify', { topic, url: isIOS ? '' : appUrl() }); }   // on iPhone a tap would open Safari, which has none of your settings, so no link
+  catch (e) { toast(oldScript(e)); return; }
+  S.status = Object.assign({}, S.status, { notify: { on: true, topic, click: !isIOS } }); put('status', S.status);
+  const deep = `ntfy://ntfy.sh/${topic}?display=Exhibitor%20Leads`;
+  const steps = isIOS ? `
+    <li><strong>Install ntfy</strong>A free notification app. No account needed.<br><a class="btn" href="${NTFY_APPSTORE}" target="_blank" rel="noopener">Get ntfy</a></li>
+    <li><strong>Copy your notification code</strong><button class="btn" type="button" data-act="copy-topic" data-text="${esc(topic)}">Copy code</button><span class="code">${esc(topic)}</span></li>
+    <li><strong>Subscribe in ntfy</strong>Tap +, paste the code as the topic and tap Subscribe.</li>`
+  : `
+    <li><strong>Install ntfy</strong>A free notification app. No account needed.<br><a class="btn" href="${isAndroid ? NTFY_PLAY : 'https://ntfy.sh'}" target="_blank" rel="noopener">Get ntfy</a></li>
+    <li><strong>Connect it to Exhibitor Leads</strong><a class="btn" href="${esc(deep)}">Connect ntfy</a><span class="small" style="display:block;margin-top:6px">Or copy the code and subscribe by hand: <span class="code">${esc(topic)}</span></span></li>
+    ${isAndroid ? '<li><strong>Turn on instant delivery</strong>In ntfy, open Exhibitor Leads, tap the ⋮ menu and enable instant delivery. Without it, messages can arrive late.</li>' : ''}`;
+  openSheet(`${head('Get notifications')}
+    <p>When a check of 5 or more exhibitors finishes and you are not in the app, ntfy tells you how many can be emailed. Nothing is sent while you are watching it finish.</p>
+    <ol class="steps">${steps}</ol>
+    <div class="actions"><button class="btn primary" type="button" data-act="settings">Done</button><button class="btn" type="button" data-act="notify-test">Send test notification</button></div>`);
+}
+
 function usageHtml() {
   const u = S.usage;
   if (!S.api || !u) return '<div id="usageBox"></div>';
@@ -1096,6 +1144,7 @@ function openSettings() {
       <div class="actions"><button class="btn primary" type="submit">${S.api ? 'Save and test' : 'Connect'}</button>${S.api ? '<button class="btn" type="button" data-act="disconnect">Disconnect this phone</button>' : ''}</div>
     </form>
     ${statusBox()}
+    ${notifyHtml()}
     ${usageHtml()}
     ${insightHtml()}
     <h3>Colour theme</h3>
@@ -1111,6 +1160,8 @@ function openSettings() {
     setUsage(j.usage);
     const ib = $('#insightBox');
     if (ib) ib.outerHTML = insightHtml();
+    const nb = $('#notifyBox');
+    if (nb) nb.outerHTML = notifyHtml();
   }).catch(() => {});
 }
 
@@ -1413,6 +1464,26 @@ async function act(name, t) {
       });
       break;
     }
+    case 'notify-setup': await withBusy(t, openNotifySetup); break;
+    case 'notify-test': {
+      await withBusy(t, async () => {
+        try { await call('testNotify', null, 30000); toast('Test sent. It should arrive in ntfy in a moment'); }
+        catch (e) { toast(oldScript(e)); }
+      });
+      break;
+    }
+    case 'notify-off': {
+      await withBusy(t, async () => {
+        try {
+          await call('setNotify', { off: true });
+          S.status = Object.assign({}, S.status, { notify: { on: false, topic: '', click: false } }); put('status', S.status);
+          const nb = $('#notifyBox'); if (nb) nb.outerHTML = notifyHtml();
+          toast('Notifications are off');
+        } catch (e) { toast(oldScript(e)); }
+      });
+      break;
+    }
+    case 'copy-topic': toast((await copyText(d.text || '')) ? 'Code copied' : 'Could not copy. Press and hold the code to select it'); break;
     case 'copy-why': toast((await copyText(S.whyText || '')) ? 'Copied' : 'Could not copy. Press and hold the text to select it'); break;
     case 'edit-row': openEditRow(d.id); break;
     case 'recheck': {
@@ -1538,6 +1609,20 @@ document.addEventListener('visibilitychange', () => {
 });
 
 /* ---------- Start ---------- */
+/** A notification's link, #show=<id>: open that exhibition. Also works when the app is already open and only the link changes. */
+function openShowLink(id) {
+  const s = S.api && showById(id);
+  if (!s) return false;
+  go({ v: 'show', showId: s.id, sector: s.sector });
+  return true;
+}
+window.addEventListener('hashchange', () => {
+  const id = C.showFromHash(location.hash);
+  if (!id) return;
+  history.replaceState(history.state, '', location.pathname + location.search);
+  if (!openShowLink(id) && S.api) refreshShows().then(() => openShowLink(id));
+});
+
 function start() {
   try { history.scrollRestoration = 'manual'; } catch {}
   const top = $('#top');
@@ -1552,9 +1637,18 @@ function start() {
     history.replaceState(null, '', location.pathname);
     if (p.url || p.name) S.shared = p;
   }
+  // A notification links here with #show=<id>: open that exhibition once the list is loaded
+  const hashShow = C.showFromHash(location.hash);
+  if (hashShow) { S.openShow = hashShow; history.replaceState(null, '', location.pathname + location.search); }
   history.replaceState({ r: S.route }, '');
   render();
-  if (S.api) { checkBuild(); refreshShows().then(() => { if (S.shared) { const p = S.shared; S.shared = null; openAddShow(p); } }); }
+  if (S.api) {
+    checkBuild();
+    refreshShows().then(() => {
+      if (S.shared) { const p = S.shared; S.shared = null; openAddShow(p); }
+      if (S.openShow) { const id = S.openShow; S.openShow = null; openShowLink(id); }
+    });
+  }
   else if (S.shared) toast('Connect your sheet first, then share the page again');
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 }

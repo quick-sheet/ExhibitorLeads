@@ -53,9 +53,17 @@ This is a guide, not legal advice.
 2. Wait about a minute.
 3. Fully close the app and reopen it. If it still looks the same, close and reopen once more.
 
-**Release 8 (Apps Script release 8).** After deploying the new `Code.gs`, open **Settings**: the box under the connection form says **Apps Script release: 8, up to date**. If it says older, the new version was not deployed (see the last paragraph below), and the app also shows a warning on the main screen until it is.
+**Release 9 (Apps Script release 9).** After deploying the new `Code.gs`, open **Settings**: the box under the connection form says **Apps Script release: 9, up to date**. If it says older, the new version was not deployed (see the last paragraph below), and the app also shows a warning on the main screen until it is.
 
-What release 8 adds:
+What release 9 adds:
+
+- **Notifications through ntfy.** When a check of 5 or more exhibitors finishes and you are not in the app, ntfy sends one message, for example “Baby & Toddler Show: all 120 checked. 34 can email, 29 to check, 57 need consent. 9 sites wouldn’t open.” Settings has a **Notifications** section with the setup steps (Android: install ntfy, tap Connect, turn on instant delivery; iPhone: install ntfy, copy the code, subscribe by hand) and a **Send test notification** button.
+  - “Not in the app” means the app has not contacted your sheet for about two and a half minutes (it is closed, or the phone is locked). Nothing is sent while you are watching a check finish.
+  - Smaller jobs (fewer than 5 exhibitors, such as checking one business again) finish without a message. One message per exhibition, however many runs it took.
+  - The notification code is made on your phone and kept in your Apps Script's Script Properties, never in the repository. Anyone who knows the code could read the messages, which only hold the exhibition name and counts. **Turn off** forgets it.
+  - On Android, tapping the message opens the exhibition in the app. On iPhone it opens ntfy only, because a tap would otherwise open Safari, which does not have your settings. Open Exhibitor Leads from your Home Screen.
+
+What release 8 added:
 
 - **The same exhibitor in more than one exhibition.** If a business with the same name (ignoring Ltd, The and punctuation) is already checked under another exhibition in the same sector, the new one takes that result at once, with no web requests, and its note says which exhibition it came from. A different website means a different business, so those are checked on their own. A confirmed company is always reused. A weaker result is reused only by a business not checked yet, so **Check again** and the “to check” recheck always do their own reading.
 - **A badge with a count** on any exhibitor listed in two or more exhibitions (the same website anywhere, or the same name within the sector). The detail screen lists the other exhibitions.

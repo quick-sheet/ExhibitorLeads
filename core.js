@@ -463,6 +463,17 @@
     return values.map((v, i) => (v > 0 && out[i] === 0 ? '<1%' : out[i] + '%'));
   }
 
+  /** A random notification code for ntfy: a prefix and 18 letters and digits. `rand(n)` gives n random bytes. */
+  function makeTopic(rand) {
+    const A = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let out = '';
+    while (out.length < 18) Array.from(rand(32)).forEach((b) => { if (out.length < 18 && b < 252) out += A[b % 36]; });   // 252 is 7 x 36: no bias towards the first letters
+    return 'exl-' + out;
+  }
+
+  /** The exhibition a notification links to, from "#show=abc123". Empty if it is anything else. */
+  function showFromHash(h) { const m = /^#show=([A-Za-z0-9]{6,20})$/.exec(String(h || '')); return m ? m[1] : ''; }
+
   /** The exhibitions a lead is listed in, its own first: this one and the others the server found it in. */
   function listedIn(row) {
     const out = [];
@@ -588,7 +599,7 @@
   return {
     esc, plural, dayNum, todayIso, GROUPS, showGroup, groupShows, fmtDates, ago,
     STATUS_LABEL, statusOf, isGoogle, countRows, workspaceShort, workspaceLabel, rowSub, companyTypeLabel, companyUrl, legalLabel, emailRule, emailKindLabel,
-    FILTERS, filterRows, filterCount, summary, isUnread, shares, listedIn, listedCount, reachSummary,
+    FILTERS, filterRows, filterCount, summary, isUnread, shares, listedIn, listedCount, reachSummary, makeTopic, showFromHash,
     SECTOR_PRESETS, cleanSector, matchSector, sectorsFrom, searchLinks,
     validUrl, parseShared, validApiUrl, slug, planGrid, planLabel,
     CSV_COLUMNS, csvCell, toCsv, mergeBySite, usage, sectorOptions, resolveSector, leadLines,

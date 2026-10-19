@@ -14,7 +14,7 @@
 
 const VERSION = 1;
 // Which release of this code is live. The app shows it in Settings and warns when it is older than the app expects.
-const BUILD = 8;
+const BUILD = 9;
 const TZ = 'Europe/London';
 const UA = 'ExhibitorLeads/1 (personal prospecting tool; Google Apps Script)';
 const MAX_BODY = 600000;
@@ -74,13 +74,14 @@ function doPost(e) {
 function json(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 
 function route(action, p) {
-  const routes = { ping, status, list, saveShow, deleteShow, loadShow, pasteList, rows, enrich, confirmMatch, confirmLikely, editRow, recheck, recheckWeak, deleteRows, explain, searchCompanies };
+  const routes = { ping, status, list, saveShow, deleteShow, loadShow, pasteList, rows, enrich, confirmMatch, confirmLikely, editRow, recheck, recheckWeak, deleteRows, explain, searchCompanies, setNotify, testNotify };
   p = p || {};
   try {
     if (action === 'ping') return { ok: true, v: VERSION, build: BUILD };
     if (!routes[action]) return { error: 'Unknown action' };
     if (!prop('TOKEN')) return { error: 'Not set up yet. In Apps Script, choose setup and press Run.' };
     if (typeof p.token !== 'string' || !safeEq(p.token, prop('TOKEN'))) { Utilities.sleep(700); return { error: 'Unauthorised' }; }
+    touchSeen();   // the app is open and talking to us: no notification needed for what finishes now
     const out = routes[action](p);
     noteUsage(0);
     return out;
@@ -1498,6 +1499,91 @@ function pubEx(r) { const o = {}; EX_COLS.forEach((c) => { if (c !== 'detailUrl'
 
 function ping() { return { ok: true, v: VERSION, build: BUILD }; }
 
+/* ---------- Notifications through ntfy: a message on the phone when a big check has finished and you are not in the app ---------- */
+
+const NTFY = 'https://ntfy.sh';
+const AWAY_MS = 150000;   // no call from the app for this long: you are not looking at it
+const NOTIFY_MIN = 5;     // a job of fewer exhibitors than this finishes without a message
+
+function touchSeen() { try { CacheService.getScriptCache().put('seen', String(Date.now()), 21600); } catch (e) { /* best effort */ } }
+function awayNow() { try { return Date.now() - (+CacheService.getScriptCache().get('seen') || 0) > AWAY_MS; } catch (e) { return true; } }
+
+function notifyInfo() { const t = prop('NTFY_TOPIC'); return { on: !!t, topic: t, click: !!prop('NTFY_URL') }; }
+
+/** The address of the app, without anything after it, for the notification to open. Empty if it is not a plain https address. */
+function cleanAppUrl(u) {
+  const p = parseUrl(u);
+  return p && p.scheme === 'https' && isPublicHost(p.host) && String(u).length <= 300 ? 'https://' + p.host + (p.port ? ':' + p.port : '') + p.path : '';
+}
+
+/** Stores the notification code (the ntfy topic) the phone subscribed to, or switches notifications off. */
+function setNotify(p) {
+  const props = PropertiesService.getScriptProperties();
+  if (p.off) { props.deleteProperty('NTFY_TOPIC'); props.deleteProperty('NTFY_URL'); props.deleteProperty('JOBS'); return notifyInfo(); }
+  const topic = String(p.topic || '').trim();
+  if (!/^[A-Za-z0-9_-]{12,64}$/.test(topic)) throw new Error('That notification code does not look right');
+  setProp('NTFY_TOPIC', topic);
+  const url = cleanAppUrl(p.url);
+  if (url) setProp('NTFY_URL', url); else props.deleteProperty('NTFY_URL');
+  return notifyInfo();
+}
+
+/** Sends one message. Never throws: a failed notification must not get in the way of the checks. */
+function sendNtfy(title, message, click) {
+  const topic = prop('NTFY_TOPIC');
+  if (!topic) return { code: -1 };
+  const q = ['title=' + encodeURIComponent(title), 'tags=white_check_mark', 'priority=3'];
+  if (click) q.push('click=' + encodeURIComponent(click));
+  const r = http(NTFY + '/' + encodeURIComponent(topic) + '?' + q.join('&'), { method: 'post', payload: message, contentType: 'text/plain; charset=utf-8' });
+  return { code: r.code, error: r.error };
+}
+
+function testNotify() {
+  if (!prop('NTFY_TOPIC')) throw new Error('Set up notifications first');
+  const r = sendNtfy('Exhibitor Leads is connected', 'You will get a message here when a check of ' + NOTIFY_MIN + ' or more exhibitors finishes and you are not in the app.', prop('NTFY_URL'));
+  if (r.code < 200 || r.code >= 300) throw new Error('ntfy did not accept it (' + (r.code || r.error || 'no answer') + ')');
+  return { sent: true };
+}
+
+/** "Baby & Toddler Show: all 120 checked. 34 can email, 29 to check, 57 need consent. 9 sites wouldn’t open." */
+function finishedMessage(show, rows) {
+  const c = counts(rows), sites = reachInfo(rows).sites;
+  const parts = [c.corporate + ' can email'];
+  if (c.check) parts.push(c.check + ' to check');
+  if (c.consent) parts.push(c.consent + ' ' + (c.consent === 1 ? 'needs' : 'need') + ' consent');
+  return show.name + ': all ' + c.total + ' checked. ' + parts.join(', ') + '.' + (sites ? ' ' + sites + (sites === 1 ? ' site' : ' sites') + ' wouldn’t open.' : '');
+}
+
+/**
+ * Called at the end of every run with how many exhibitors it finished in each exhibition. Keeps a running count of the
+ * job (everything finished since the exhibition last had nothing waiting). When nothing is waiting any more, a job of
+ * NOTIFY_MIN or more sends one message, but only if the app has been quiet, meaning nobody is watching it finish.
+ */
+function notifyFinished(doneBy) {
+  try {
+    const ids = Object.keys(doneBy);
+    if (!ids.length || !prop('NTFY_TOPIC')) return;
+    const rows = readTab('Exhibitors', EX_COLS), shows = readTab('Shows', SHOW_COLS);
+    const away = awayNow(), send = [];
+    withLock(() => {
+      let jobs = {};
+      try { jobs = JSON.parse(prop('JOBS') || '{}') || {}; } catch (e) { jobs = {}; }
+      const now = Date.now();
+      Object.keys(jobs).forEach((k) => { if (!jobs[k] || now - jobs[k].at > 6 * 3600000) delete jobs[k]; });   // a job that never finished
+      ids.forEach((id) => {
+        const j = jobs[id] || { n: 0 };
+        j.n += doneBy[id]; j.at = now; jobs[id] = j;
+        const mine = rows.filter((r) => r.showId === id), show = shows.find((x) => x.id === id);
+        if (!show || mine.some((r) => r.state === 'todo' || r.state === '' || r.state === 'working')) return;   // still some to do
+        delete jobs[id];
+        if (j.n >= NOTIFY_MIN && away) send.push({ show, rows: mine });
+      });
+      setProp('JOBS', JSON.stringify(jobs));
+    });
+    send.forEach((x) => { const base = prop('NTFY_URL'); sendNtfy('Checks finished', finishedMessage(x.show, x.rows), base ? base + '#show=' + x.show.id : ''); });
+  } catch (e) { Logger.log('notify: ' + e); }
+}
+
 /* ---------- What the checks have been doing: speed, evidence and rechecks (shown in Settings) ---------- */
 
 /** Keeps the last 60 exhibitors' timings: [total ms, requests, site, pages, mail, Companies House, show page, sheet, slowest wait, its host]. */
@@ -1626,7 +1712,7 @@ function status() {
   let trigger = false;
   try { trigger = ScriptApp.getProjectTriggers().some((t) => t.getHandlerFunction() === 'enrichTick'); } catch (e) { trigger = false; }
   const rows = readTab('Exhibitors', EX_COLS);
-  return { ok: true, v: VERSION, build: BUILD, ch: !!prop('CH_KEY'), trigger, sheetUrl: db().getUrl(), usage: usageInfo(), speed: speedInfo(), evidence: evidenceInfo(rows), recheck: recheckInfo(rows), reach: reachInfo(rows) };
+  return { ok: true, v: VERSION, build: BUILD, ch: !!prop('CH_KEY'), trigger, sheetUrl: db().getUrl(), usage: usageInfo(), speed: speedInfo(), evidence: evidenceInfo(rows), recheck: recheckInfo(rows), reach: reachInfo(rows), notify: notifyInfo() };
 }
 
 function list() {
@@ -1897,6 +1983,9 @@ function enrichRun(p) {
         }));
       } catch (e) { /* the claim simply times out */ }
     }
+    const doneBy = {};
+    changed.concat(skipped).forEach((x) => { doneBy[x.showId] = (doneBy[x.showId] || 0) + 1; });
+    notifyFinished(doneBy);
     noteTiming(log, sheetMs);
     noteUsage(0);
   }
