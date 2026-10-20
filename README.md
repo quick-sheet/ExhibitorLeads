@@ -57,6 +57,19 @@ This is a guide, not legal advice.
 2. Open the **Actions** tab and wait for **Deploy to Pages** to show a green tick (usually under a minute). Opening `sw.js` on the live address should show the new `exhibitorleads-vN` name.
 3. Fully close the app and reopen it. If it still looks the same, close and reopen once more.
 
+**Release 18 (app only; the Apps Script stays at release 15).** Add an exhibition from a pasted list in one go, and see counts under the app's name.
+
+1. Nothing to do in Apps Script. Settings keeps saying **Apps Script release: 15, up to date**.
+2. Upload `index.html`, `core.js`, `sw.js` and `README.md`, and commit. Wait for the green tick in **Actions**, then fully close and reopen the app.
+
+What release 18 changes:
+
+- **Link | List on Add exhibition.** **Link** works as before. **List** turns the box into the paste box (one exhibitor per line, a website after the name helps), and **Add and check** adds the exhibition and its list together, so checking starts at once. No more adding the exhibition first and pasting afterwards.
+- **A list pasted into the link box moves to List by itself**, keeping your text, with the note “That looks like a list of exhibitors, so it will be added as one.” Typing a link never switches. If the list only shows up when you tap the button, it moves to List and waits for one more tap, so nothing is added that you have not seen.
+- **A clearer message for a link with a mistake in it**, naming the part that is not a web address: “thebabyshow” is not a web address.
+- **Counts under the app's name**: the home screen says how many exhibitions as before; a sector says “Sector · 2 exhibitions”; an exhibition says its sector and its own count, “Art and crafts · 163 exhibitors”, checked or not.
+- Editing an exhibition still takes links only; paste more exhibitors from its menu with **Paste a list**.
+
 **Release 17 (Apps Script release 15).** The company check reads the copyright line when it is written in words, and when the company it finds has closed, it looks for the active company that took over at the same address.
 
 1. Paste the new `Code.gs` over the old one and save. You do not need to run `authorise` or `setup` again.

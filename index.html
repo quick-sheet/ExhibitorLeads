@@ -134,7 +134,10 @@ header { display: grid; grid-template-columns: 1fr auto; align-items: start; pad
 .brand { display: flex; align-items: flex-start; gap: 2px; min-width: 0; }
 .back { margin: -10px 0 0 -12px; flex: none; }
 .mark { font-weight: 600; font-size: 17px; letter-spacing: -.01em; }
-.where { display: block; font-size: 13px; color: var(--ink-3); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.where { display: flex; font-size: 13px; color: var(--ink-3); margin-top: 1px; white-space: nowrap; min-width: 0; }
+.where .wl { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.where .wn { flex: none; }
+.where .dot { margin: 0 6px; }
 .where:empty { display: none; }
 .tools { display: flex; gap: 4px; margin: -10px -8px 0 0; }
 .icon-btn { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-2); flex: none; }
@@ -212,6 +215,13 @@ textarea.field { height: auto; min-height: 96px; padding: 10px 12px; resize: ver
 .field::placeholder { color: var(--ink-3); }
 .lbl { display: block; margin: 16px 0 6px; font-size: 14px; font-weight: 500; color: var(--ink-2); }
 .hint { margin: 6px 0 0; font-size: 13px; color: var(--ink-3); }
+/* Link | List on the add form */
+.lbl-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 2px; }
+.lbl-row .lbl { margin: 0; }
+.mode { display: inline-flex; padding: 3px; border-radius: 20px; background: var(--raise-2); flex: none; }
+.mode button { min-height: 34px; min-width: 64px; padding: 0 14px; border-radius: 17px; font-size: 14px; font-weight: 500; color: var(--ink-2); }
+.mode button[aria-checked="true"] { background: var(--ink); color: var(--bg); }
+.sheet .mode-note { color: var(--ink-2); }
 .field-row { display: flex; gap: 8px; margin-top: 10px; }
 .field-row .field { flex: 1; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -442,7 +452,7 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
 <div class="toast" id="toast" role="status" popover="manual"></div>
 
-<script src="core.js?v=17"></script>
+<script src="core.js?v=18"></script>
 <script>
 (() => {
 'use strict';
@@ -784,11 +794,14 @@ function renderHeader() {
   $('#back').hidden = r.v === 'home';
   $('#searchBtn').hidden = !S.api;
   if (!S.api) closeFind();
-  let where = '';
-  if (r.v === 'home') where = S.api ? (S.shows.length ? C.plural(S.shows.length, 'exhibition') : 'Ready') : 'Not connected';
-  else if (r.v === 'sector') where = 'Sector';
-  else { const s = showById(r.showId); where = s ? s.sector : ''; }
-  $('#where').textContent = where;
+  let w = { label: '', count: '' };
+  if (r.v === 'home') w.label = S.api ? (S.shows.length ? C.plural(S.shows.length, 'exhibition') : 'Ready') : 'Not connected';
+  // the sector's exhibitions; an exhibition's own exhibitors, checked or not
+  else if (r.v === 'sector') w = C.whereParts('Sector', S.shows.filter((x) => x.sector === r.sector).length, 'exhibition');
+  else { const s = showById(r.showId), rows = S.rows[r.showId]; if (s) w = C.whereParts(s.sector, rows && rows.length ? rows.length : (s.counts || {}).total, 'exhibitor'); }
+  const html = w.label ? `<span class="wl">${esc(w.label)}</span>${w.count ? `<span class="wn num"><span class="dot">·</span>${esc(w.count)}</span>` : ''}` : '';
+  const el = $('#where');
+  if (el.innerHTML !== html) el.innerHTML = html;
 }
 
 function renderNotices() {
@@ -923,6 +936,7 @@ function updateShow() {
   const c = rows.length ? C.countRows(rows) : (s.counts || C.countRows([]));
   const group = C.GROUPS.find((g) => g.id === C.showGroup(s, today()));
   const running = E.running && E.showId === s.id && !E.stop;
+  renderHeader();
   const actions = showActions(s, c);
   const key = [s.id, s.name, s.start, s.end, c.total, c.done, c.corporate, c.check, c.consent, c.google, c.microsoft, running, s.status, s.statusNote, s.urls.length].join('|');
   if (hero.dataset.key !== key) {
@@ -1115,13 +1129,46 @@ function showForm(s, pre) {
       <datalist id="sectorList">${sectors.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>
       <div class="two"><div><label class="lbl" for="sf-start">Starts</label><input class="field" id="sf-start" name="start" type="date" value="${esc(v.start || '')}"></div>
       <div><label class="lbl" for="sf-end">Ends</label><input class="field" id="sf-end" name="end" type="date" value="${esc(v.end || '')}"></div></div>
-      <label class="lbl" for="sf-urls">Exhibitor list link</label>
-      <textarea class="field" id="sf-urls" name="urls" rows="2" placeholder="Paste the address of the exhibitor list" autocapitalize="off" spellcheck="false">${esc((v.urls || []).join('\n') || p.url || '')}</textarea>
-      <p class="hint">Add more than one link, each on its own line, if the list runs over several pages. You can also paste the list itself later.</p>
+      ${v.id ? '' : `<div class="lbl-row"><span class="lbl" id="sf-how">Exhibitors from</span>
+        <div class="mode" role="radiogroup" aria-labelledby="sf-how">
+          <button type="button" role="radio" aria-checked="true" data-act="sf-mode" data-mode="link">Link</button>
+          <button type="button" role="radio" aria-checked="false" data-act="sf-mode" data-mode="list">List</button>
+        </div></div>`}
+      <div data-pane="link">
+        <label class="lbl" for="sf-urls"${v.id ? '' : ' style="margin-top:4px"'}>Exhibitor list link</label>
+        <textarea class="field" id="sf-urls" name="urls" rows="2" placeholder="Paste the address of the exhibitor list" autocapitalize="off" spellcheck="false">${esc((v.urls || []).join('\n') || p.url || '')}</textarea>
+        <p class="hint">Add more than one link, each on its own line, if the list runs over several pages.${v.id ? ' You can also paste the list itself from the exhibition menu.' : ' Have the list itself? Choose List.'}</p>
+      </div>
+      ${v.id ? '' : `<div data-pane="list" hidden>
+        <label class="lbl" for="sf-list" style="margin-top:4px">Exhibitors</label>
+        <textarea class="field" id="sf-list" name="list" rows="7" placeholder="Acme Ltd, www.acme.co.uk&#10;Beta Crafts&#10;Gamma Foods, gamma.com" autocapitalize="off" spellcheck="false"></textarea>
+        <p class="hint">One per line. A website after the name helps: Acme Ltd, www.acme.co.uk. A spreadsheet copy with columns works too.</p>
+      </div>
+      <p class="hint mode-note" id="sf-note" role="status" hidden></p>`}
       <div class="actions"><button class="btn primary" type="submit">${v.id ? 'Save' : 'Add and load'}</button><button class="btn" type="button" data-act="close">Cancel</button></div>
     </form>`;
 }
-function openAddShow(pre) { openSheet(head('Add exhibition') + showForm(null, pre)); }
+
+/** Link or List on the add form. A list moved over from the link box keeps its text, with a note saying why. */
+function setShowMode(mode, note) {
+  const f = $('#showForm');
+  if (!f || !f.querySelector('.mode')) return;
+  f.dataset.mode = mode;
+  f.querySelectorAll('[data-act=sf-mode]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.mode === mode)));
+  f.querySelectorAll('[data-pane]').forEach((x) => { x.hidden = x.dataset.pane !== mode; });
+  f.querySelector('[type=submit]').textContent = mode === 'list' ? 'Add and check' : 'Add and load';
+  const n = $('#sf-note'); n.textContent = note || ''; n.hidden = !note;
+}
+/** An exhibitor list pasted into the link box goes to the list box instead. True when it moved. */
+function linkBoxToList() {
+  const a = $('#sf-urls'), b = $('#sf-list');
+  if (!a || !b || C.linkBoxKind(a.value).kind !== 'list') return false;
+  b.value = (b.value.trim() ? b.value.trim() + '\n' : '') + a.value.trim();
+  a.value = '';
+  setShowMode('list', 'That looks like a list of exhibitors, so it will be added as one.');
+  return true;
+}
+function openAddShow(pre) { openSheet(head('Add exhibition') + showForm(null, pre)); linkBoxToList(); }
 function openEditShow(s) { openSheet(head('Edit exhibition') + showForm(s)); }
 
 function openPaste(s) {
@@ -1463,19 +1510,37 @@ async function submitShow(form) {
   const name = String(f.get('name') || '').trim(), sector = C.matchSector(f.get('sector'), S.shows);
   if (!name) { toast('Give the exhibition a name'); return; }
   if (!sector) { toast('Add a sector, such as Whisky and spirits'); return; }
-  const urls = String(f.get('urls') || '').split(/\s+/).filter(Boolean).map((u) => C.validUrl(u));
-  if (urls.some((u) => !u)) { toast('One of the links does not look right'); return; }
+  const listMode = !id && form.dataset.mode === 'list';
+  let urls = [], list = '';
+  if (listMode) {
+    list = String(f.get('list') || '').trim();
+    if (!list) { toast('Paste at least one exhibitor, or choose Link'); return; }
+  } else {
+    const k = C.linkBoxKind(f.get('urls'));
+    if (k.kind === 'list') {
+      if (!id && linkBoxToList()) return;   // shown in the list box: one more tap adds it
+      toast('That looks like a list of exhibitors. Add it with Paste a list in the exhibition menu'); return;
+    }
+    if (k.kind === 'bad') { toast(`“${k.bad.length > 40 ? k.bad.slice(0, 40) + '…' : k.bad}” is not a web address. Check it${id ? '' : ', or choose List to paste the exhibitors'}`); return; }
+    urls = k.urls;
+  }
   const btn = form.querySelector('[type=submit]');
   await withBusy(btn, async () => {
     try {
       const j = await call('saveShow', { id: id || undefined, name, sector, start: f.get('start') || '', end: f.get('end') || '', urls: urls.join('\n') });
       S.set.lastSector = sector; saveSet();
+      // the list goes in with the exhibition, so its checks start at once
+      let pasted = null, pasteErr = null;
+      if (list) { try { pasted = await call('pasteList', { showId: j.show.id, text: list }); } catch (err) { pasteErr = err; } }
       closeSheet();
       await refreshShows();
       const show = showById(j.show.id) || j.show;
       if (!id) {
+        E.userPaused = false;
         go({ v: 'show', showId: show.id, sector: show.sector });
-        if (show.urls.length) { await sleep(50); loadList(show, null); } else toast('Added. Paste the list to get started');
+        if (pasted) toast(`${C.plural(pasted.added, 'exhibitor')} added${pasted.skipped ? `, ${pasted.skipped} already there` : ''}`);
+        else if (pasteErr) toast(`The exhibition was added, but not the list: ${pasteErr.message}. Tap Paste the list to try again`);
+        else if (show.urls.length) { await sleep(50); loadList(show, null); } else toast('Added. Paste the list to get started');
       } else { toast('Saved'); if (S.route.v === 'show') { const h = $('#showHero'); if (h) h.dataset.key = ''; updateShow(); } else renderMain(); }
     } catch (e) { setOffline(e); toast(e.message); }
   });
@@ -1544,6 +1609,7 @@ async function act(name, t) {
       if (S.route.v === 'show') { if (s) runChecks(s.id); } else runAllChecks();
       break;
     case 'more': S.limit += 200; updateShow(); break;
+    case 'sf-mode': setShowMode(t.dataset.mode); if (t.dataset.mode === 'list') linkBoxToList(); break;
     case 'open-sheet': if (S.status && S.status.sheetUrl) window.open(S.status.sheetUrl, '_blank', 'noopener'); break;
     case 'delete-show': if (s) openConfirm('Delete this exhibition?', `${s.name} and its exhibitors will be removed from your sheet. This cannot be undone.`, 'delete-show-yes', 'Delete exhibition', s.id); break;
     case 'delete-show-yes': {
@@ -1761,6 +1827,13 @@ document.addEventListener('submit', async (e) => {
 
 let qTimer;
 document.addEventListener('input', (e) => {
+  // a list pasted into the link box of a new exhibition moves to the list box (typing a link never does)
+  if (e.target.id === 'sf-urls') {
+    const ta = e.target, grew = ta.value.length - (+ta.dataset.len || 0);
+    ta.dataset.len = ta.value.length;
+    if (/^insertFromPaste|^insertFromDrop/.test(e.inputType || '') || grew > 15) linkBoxToList();
+    return;
+  }
   if (e.target.id !== 'q') return;
   clearTimeout(qTimer);
   qTimer = setTimeout(() => { S.q = e.target.value; S.limit = 200; updateShow(); }, 150);

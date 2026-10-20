@@ -323,6 +323,28 @@
 
   /* ---------- Sharing and links ---------- */
 
+  /**
+   * What is in the link box of a new exhibition. Web addresses ({ kind: 'links', urls }); an exhibitor list pasted there by
+   * mistake ({ kind: 'list' }): several lines, or a line that reads like "Acme Ltd, www.acme.co.uk", that do not start with an
+   * address; or a link with a mistake in it ({ kind: 'bad', bad }), naming the first part that is not a web address.
+   */
+  function linkBoxKind(text) {
+    const lines = String(text || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    if (!lines.length) return { kind: 'empty', urls: [] };
+    const tokens = lines.join(' ').split(/\s+/).filter(Boolean);
+    const urls = tokens.map(validUrl);
+    if (urls.every(Boolean)) return { kind: 'links', urls };
+    const startsWithLink = lines.every((l) => validUrl(l.split(/[\s,]+/)[0]));
+    if (!startsWithLink && (lines.length >= 2 || /[\s,]/.test(lines[0]))) return { kind: 'list' };
+    return { kind: 'bad', bad: tokens[urls.findIndex((u) => !u)] };
+  }
+
+  /** The small line under the app's name: "Sector" and "2 exhibitions", "Art and crafts" and "163 exhibitors". No count while it is 0. */
+  function whereParts(label, n, one) {
+    n = Math.max(0, Math.round(+n || 0));
+    return { label: String(label || ''), count: n ? `${commas(n)} ${n === 1 ? one : one + 's'}` : '' };
+  }
+
   function validUrl(u) {
     let t = String(u || '').trim();
     if (!t || /\s/.test(t)) return '';
@@ -648,7 +670,7 @@
     STATUS_LABEL, statusOf, isGoogle, isMicrosoft, providerOf, countRows, workspaceShort, workspaceLabel, rowSub, rowParts, companyTypeLabel, companyUrl, legalLabel, emailRule, emailKindLabel,
     FILTERS, filterRows, filterCount, summary, isUnread, shares, listedIn, listedCount, reachSummary, makeTopic, showFromHash,
     SECTOR_PRESETS, cleanSector, matchSector, sectorsFrom, searchLinks,
-    validUrl, parseShared, validApiUrl, slug,
+    validUrl, linkBoxKind, whereParts, parseShared, validApiUrl, slug,
     CSV_COLUMNS, csvCell, toCsv, mergeBySite, usage, sectorOptions, resolveSector, leadGroups, barLabel,
     evidenceRows, speedLines, recheckSummary, explainText, scriptOutdated, chromeIntent, waitTime, waitingLine,
   };
