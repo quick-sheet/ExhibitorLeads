@@ -14,7 +14,7 @@
 
 const VERSION = 1;
 // Which release of this code is live. The app shows it in Settings and warns when it is older than the app expects.
-const BUILD = 16;
+const BUILD = 17;
 const TZ = 'Europe/London';
 const UA = 'ExhibitorLeads/1 (personal prospecting tool; Google Apps Script)';
 const MAX_BODY = 600000;
@@ -47,7 +47,7 @@ const PLATFORM_GUESSES = {
 };
 const EXTRA_PAGES = 8;   // most pages read on one website after its home page
 
-const SHOW_COLS = ['id', 'name', 'sector', 'start', 'end', 'urls', 'status', 'statusNote', 'addedAt', 'loadedAt'];
+const SHOW_COLS = ['id', 'name', 'sector', 'start', 'end', 'urls', 'status', 'statusNote', 'addedAt', 'loadedAt', 'venue'];
 const EX_COLS = ['id', 'showId', 'name', 'stand', 'category', 'blurb', 'website', 'domain', 'detailUrl',
   'phone', 'phoneSrc', 'email', 'emailKind', 'emailSrc', 'contact', 'contactSrc', 'chDirector',
   'companyNo', 'companyName', 'companyType', 'companyStatus', 'companyAddr',
@@ -78,7 +78,7 @@ function doPost(e) {
 function json(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 
 function route(action, p) {
-  const routes = { ping, status, list, saveShow, deleteShow, loadShow, pasteList, rows, enrich, confirmMatch, confirmLikely, editRow, recheck, recheckWeak, deleteRows, explain, searchCompanies, setNotify, testNotify };
+  const routes = { ping, status, list, saveShow, deleteShow, loadShow, pasteList, rows, enrich, confirmMatch, confirmLikely, editRow, recheck, recheckWeak, deleteRows, explain, searchCompanies, setNotify, testNotify, lookShow, saveSearch };
   p = p || {};
   try {
     if (action === 'ping') return { ok: true, v: VERSION, build: BUILD };
@@ -2051,6 +2051,7 @@ function db() {
   const first = ss.getSheetByName('Sheet1');
   if (first && ss.getSheets().length > 1) ss.deleteSheet(first);
   if (prop('EX_COLS') !== String(EX_COLS.length)) { ensureCols(ss.getSheetByName('Exhibitors'), EX_COLS); setProp('EX_COLS', String(EX_COLS.length)); }
+  if (prop('SHOW_COLS') !== String(SHOW_COLS.length)) { ensureCols(ss.getSheetByName('Shows'), SHOW_COLS); setProp('SHOW_COLS', String(SHOW_COLS.length)); }   // release 17 added the venue
   _ss = ss;
   return ss;
 }
@@ -2448,7 +2449,199 @@ function list() {
   const shows = readTab('Shows', SHOW_COLS), ex = readTab('Exhibitors', EX_COLS);
   const by = {};
   ex.forEach((r) => { (by[r.showId] = by[r.showId] || []).push(r); });
-  return { shows: shows.map((s) => Object.assign(pubShow(s), { counts: counts(by[s.id] || []) })), v: VERSION, usage: usageInfo() };
+  return { shows: shows.map((s) => Object.assign(pubShow(s), { counts: counts(by[s.id] || []) })), searches: readSearches(), v: VERSION, usage: usageInfo() };
+}
+
+/* ---------- Finding exhibitions (release 17) ----------
+ * Listings sites (10times, exhibitions.co.uk, cantonfair.net and the like) say in their terms or robots.txt that automated
+ * tools may not read them. So this never reads them: you browse them yourself, from search pages saved per sector, and share
+ * a show's own website to the app. The app then reads that website, where its robots.txt allows, for the dates, the venue
+ * and a link to its exhibitor list. */
+
+// Listings and search sites: never read automatically. Sharing one of their pages offers to save it as a search page instead.
+const DIRECTORY_HOSTS = /(^|\.)(10times\.com|exhibitions\.co\.uk|cantonfair\.net|eventseye\.com|neventum\.com|tradefairdates\.com|expocart\.com|luminik\.io|eventslist\.co\.uk|expolume\.com|ntradeshows\.com|tradeshowsguide\.com|google\.[a-z.]+|bing\.com|duckduckgo\.com|eventbrite\.[a-z.]+|allevents\.in|facebook\.com|instagram\.com)$/;
+
+/** The search pages you saved, by sector (lower case): { "baby and toddler": [{ label, url }] }. */
+function readSearches() {
+  try { const o = JSON.parse(prop('SEARCHES') || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; }
+}
+/** Saves, removes or renames search pages: { sector, label, url } adds; { sector, url, remove: true } removes; { from, to } renames a sector. */
+function saveSearch(p) {
+  return withLock(() => {
+    const all = readSearches();
+    const key = (x) => String(x || '').trim().toLowerCase().slice(0, 40);
+    if (p.from !== undefined) {
+      const a = key(p.from), b = key(p.to);
+      if (a && b && a !== b && all[a]) { all[b] = (all[b] || []).concat(all[a].filter((x) => !(all[b] || []).some((y) => y.url === x.url))).slice(0, 12); delete all[a]; }
+    } else {
+      const k = key(p.sector);
+      if (!k) throw new Error('Choose a sector');
+      const u = String(p.url || '').trim();
+      const pu = parseUrl(u);
+      if (!pu || pu.scheme !== 'https' || !isPublicHost(pu.host) || u.length > 600) throw new Error('That link does not look right. Copy the page address from Chrome and paste it here');
+      const list = (all[k] || []).filter((x) => x.url !== u);
+      if (!p.remove) {
+        if (list.length >= 12) throw new Error('A sector can keep 12 search pages. Remove one first');
+        list.push({ label: clip(String(p.label || '').replace(/\s+/g, ' '), 60) || pu.host.replace(/^www\./, ''), url: u });
+      }
+      if (list.length) all[k] = list; else delete all[k];
+    }
+    setProp('SEARCHES', JSON.stringify(all));
+    return { searches: all };
+  });
+}
+
+// UK venues that shows name in their text more often than in their data, longest first so "NEC Birmingham" wins over "NEC".
+const VENUES = [
+  ['Olympia London', /\bolympia(?: london| exhibition centre)?\b/i], ['ExCeL London', /\bexcel(?: london| exhibition centre)\b/i],
+  ['NEC Birmingham', /\b(?:the )?nec(?: birmingham)?\b|national exhibition centre/i], ['Business Design Centre, London', /business design centre/i],
+  ['Alexandra Palace, London', /alexandra palace|ally pally/i], ['Manchester Central', /manchester central/i], ['Event City, Manchester', /\bevent ?city\b/i],
+  ['SEC Glasgow', /\bsec(?: centre)?,? glasgow|scottish event campus/i], ['Royal Highland Centre, Edinburgh', /royal highland centre/i], ['P&J Live, Aberdeen', /p&(?:amp;)?j live/i],
+  ['Harrogate Convention Centre', /harrogate convention centre/i], ['Yorkshire Event Centre, Harrogate', /yorkshire event centre/i], ['Great Yorkshire Showground', /great yorkshire showground/i],
+  ['ICC Wales, Newport', /icc wales/i], ['Exeter Westpoint', /westpoint(?: arena| exeter)?/i], ['Farnborough International', /farnborough international/i],
+  ['Kent Event Centre', /kent event centre|kent showground/i], ['Sandown Park', /sandown park/i], ['Epsom Downs Racecourse', /epsom downs/i],
+  ['Coventry Building Society Arena', /coventry building society arena|cbs arena/i], ['Telford International Centre', /telford international centre/i],
+  ['Three Counties Showground, Malvern', /three counties showground/i], ['Stoneleigh Park', /stoneleigh park/i], ['Newark Showground', /newark showground/i],
+  ['Bournemouth International Centre', /bournemouth international centre/i], ['Brighton Centre', /\bbrighton centre\b/i], ['Birmingham ICC', /\bicc birmingham|international convention centre,? birmingham/i],
+  ['Belfast Waterfront', /belfast waterfront/i], ['Titanic Belfast', /titanic belfast/i], ['Leeds First Direct Arena', /first direct arena/i],
+  ['Liverpool Exhibition Centre', /exhibition centre liverpool|acc liverpool|m&s bank arena/i], ['Marshall Arena, Milton Keynes', /marshall arena/i],
+];
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+const monthOf = (w) => { const i = MONTHS.findIndex((m) => m.indexOf(String(w || '').toLowerCase().slice(0, 3)) === 0); return i < 0 ? 0 : i + 1; };
+const ymd = (y, m, d) => (y >= 2020 && y <= 2040 && m >= 1 && m <= 12 && d >= 1 && d <= 31 ? y + '-' + ('0' + m).slice(-2) + '-' + ('0' + d).slice(-2) : '');
+
+/** What a show's own page says about itself: { name, start, end, venue, from } from its structured data, or else its text. */
+function showFacts(html, base, today, dataOnly) {
+  const out = { name: '', start: '', end: '', venue: '', from: '' };
+  const now = today || Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
+  // 1. structured data: an Event (or ExhibitionEvent, Festival and the like) with its dates and location
+  const re = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let m;
+  const events = [];
+  const walk = (o, d) => {
+    if (!o || typeof o !== 'object' || d > 6) return;
+    if (Array.isArray(o)) { o.forEach((x) => walk(x, d + 1)); return; }
+    const t = [].concat(o['@type'] || []).join(' ');
+    if (/event|festival/i.test(t) && o.startDate) events.push(o);
+    Object.keys(o).forEach((k) => { if (k !== '@context' && typeof o[k] === 'object') walk(o[k], d + 1); });
+  };
+  while ((m = re.exec(String(html || '')))) { try { walk(JSON.parse(m[1].trim()), 0); } catch (e) { /* not valid JSON */ } }
+  const ev = events.filter((e) => String(e.endDate || e.startDate).slice(0, 10) >= now).sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)))[0];
+  if (ev) {
+    out.name = clip(stripTags(String(ev.name || '')), 120);
+    out.start = isoDay(String(ev.startDate).slice(0, 10)); out.end = isoDay(String(ev.endDate || ev.startDate).slice(0, 10)) || out.start;
+    const loc = [].concat(ev.location || [])[0];
+    if (loc && typeof loc === 'object') {
+      const a = loc.address;
+      const addr = a && typeof a === 'object' ? [a.streetAddress, a.addressLocality, a.postalCode].filter(Boolean).join(', ') : String(a || '');
+      out.venue = clip([loc.name, addr].filter(Boolean).join(', ').replace(/\s+/g, ' '), 120);
+    } else if (typeof loc === 'string') out.venue = clip(loc, 120);
+    out.from = 'data';
+  }
+  if (dataOnly) return out;   // an exhibitor list's text is about its exhibitors, not the show
+  const text = stripTags(String(html || '').replace(/<(nav|footer)\b[\s\S]*?<\/\1>/gi, ' ')).slice(0, 20000);
+  // 2. dates written out: "30 Oct - 1 Nov 2026", "30th-31st October 2026", "Saturday 14 March 2027". The first that has not passed.
+  if (!out.start) {
+    const M = '(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
+    const D = '(\\d{1,2})(?:st|nd|rd|th)?';
+    const SEP = '\\s*(?:-|–|—|to|&|and|\\+)\\s*';
+    const pats = [
+      [new RegExp('\\b' + D + '\\s+' + M + '\\.?' + SEP + '(?:[a-z]+day\\s+)?' + D + '\\s+' + M + '\\.?,?\\s+(20\\d\\d)\\b', 'gi'), (x) => [ymd(+x[5], monthOf(x[2]), +x[1]), ymd(+x[5], monthOf(x[4]), +x[3])]],
+      [new RegExp('\\b' + D + SEP + '(?:[a-z]+day\\s+)?' + D + '\\s+' + M + '\\.?,?\\s+(20\\d\\d)\\b', 'gi'), (x) => [ymd(+x[4], monthOf(x[3]), +x[1]), ymd(+x[4], monthOf(x[3]), +x[2])]],
+      [new RegExp('\\b' + D + '\\s+' + M + '\\.?,?\\s+(20\\d\\d)\\b', 'gi'), (x) => [ymd(+x[3], monthOf(x[2]), +x[1]), ymd(+x[3], monthOf(x[2]), +x[1])]],
+    ];
+    for (const [rx, mk] of pats) {
+      let x, best = null;
+      while ((x = rx.exec(text))) {
+        const ctxt = text.slice(Math.max(0, x.index - 40), x.index).toLowerCase();
+        if (/(book|deadline|by|until|before|closes?|early bird|published|posted|updated|copyright|©)\s*$/.test(ctxt)) continue;   // a deadline or a posting date, not the show
+        const [a, b] = mk(x);
+        if (a && b && b >= a && b >= now && (!best || a < best[0])) best = [a, b];
+      }
+      if (best) { out.start = best[0]; out.end = best[1]; out.from = out.from || 'text'; break; }
+    }
+  }
+  // 3. a venue named in the text
+  if (!out.venue) { const v = VENUES.find((x) => x[1].test(text)); if (v) { out.venue = v[0]; out.from = out.from || 'text'; } }
+  if (!out.name) {
+    const t = /<meta[^>]+property=["']og:title["'][^>]*content=["']([^"']+)/i.exec(html) || /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);
+    const parts = t ? decodeEntities(t[1]).split(/\s+[|\u2013\u2014-]\s+/).map((x) => x.trim()).filter(Boolean) : [];
+    out.name = clip(parts.find((x) => /show|fair|expo|festival|exhibition|market|live\b/i.test(x)) || parts[0] || '', 120);
+  }
+  return out;
+}
+
+// Links that lead to the list of who is exhibiting, and links that only look like it (selling stands, logins, manuals).
+const EXH_TEXT = /^(?:the |our |view (?:the |all )?|see (?:the |all )?|meet the |full |browse (?:the )?)?(exhibitors?(?: (?:list|directory|a-?z|& brands|and brands))?|exhibitor (?:list|directory)|who'?s exhibiting|exhibiting (?:brands|companies)|brands?(?: (?:list|a-?z|directory))?|brand list|makers|stands? list|traders|stallholders)(?: \d{4})?$/i;
+const EXH_HREF = /\/(?:exhibitor-?list|exhibitors?-?(?:directory|list|a-?z)?|whos?-?exhibiting|exhibiting-?brands|brands(?:-?list|-?a-?z)?|brand-?list|traders|stallholders)(?:[\/?#]|$)/i;
+const EXH_NOT = /(become|book|apply|application|enquir|login|log-in|log in|sign in|portal|manual|pack|information for|info for|exhibit with|why exhibit|exhibiting with|rebook|price|cost|terms|faq|sponsor|hub|zone|resources|press)/i;
+const EXH_PLATFORMS = /(^|\.)(a2zinc\.net|mapyourshow\.com|expofp\.com|swapcard\.com|n200\.com|eventsforce\.net|ungerboeck\.com|exhibitorlist\.net|map-dynamics\.com|expocad\.com|cvent\.com)$/;
+/** Links on a show's page that most likely lead to its exhibitor list, best first. Same site, or a known exhibitor list platform. */
+function exhibitorLinks(html, base) {
+  const host = hostOf(base), out = [];
+  const re = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+  let m;
+  while ((m = re.exec(String(html || '')))) {
+    const href = resolveUrl(base, attr(m[1], 'href'));
+    if (!href) continue;
+    const h = hostOf(href);
+    if (!(sameSite(h, host) || EXH_PLATFORMS.test(h))) continue;
+    const text = stripTags(m[2]).replace(/\s+/g, ' ').trim();
+    if (EXH_NOT.test(text) || EXH_NOT.test((parseUrl(href) || {}).path || '')) continue;
+    let score = 0;
+    if (EXH_TEXT.test(text)) score += 10;
+    if (EXH_HREF.test(href)) score += 5;
+    if (!score) continue;
+    const prev = out.find((x) => x.url === href);
+    if (prev) prev.score = Math.max(prev.score, score); else out.push({ url: href, text: clip(text, 60), score });
+  }
+  return out.sort((a, b) => b.score - a.score).slice(0, 4);
+}
+const EXH_GUESSES = ['/exhibitors', '/exhibitor-list', '/exhibitors-list', '/exhibitor-directory'];
+
+/**
+ * Reads a show's own website, shared to the app or pasted into Add exhibition: its dates, venue and the link to its exhibitor
+ * list, with how many names that list gives. Never reads listings sites ({ directory: true }) and respects robots.txt.
+ */
+function lookShow(p) {
+  const raw = String(p.url || '').trim();
+  const pu = parseUrl(/^https?:\/\//i.test(raw) ? raw : 'https://' + raw);
+  if (!pu || !isPublicHost(pu.host)) throw new Error('That link does not look right');
+  const url = pu.scheme + '://' + pu.host + (pu.port ? ':' + pu.port : '') + pu.path + pu.query;
+  if (DIRECTORY_HOSTS.test(pu.host)) return { directory: true, host: pu.host.replace(/^www\./, '') };
+  const ctx = newCtx();
+  const home = pu.scheme + '://' + pu.host + '/';
+  const pages = fetchPages(home === url ? [url] : [url, home], ctx);
+  const pg = pages[0];
+  if (pg.blocked) return { blocked: true, note: pg.down ? 'Its robots.txt could not be read, so the app did not read the site' : 'The site asks automated tools not to read it' };
+  if (!pg.body || pg.code < 200 || pg.code >= 300) return { error: 'The page did not open' + (pg.code ? ' (' + pg.code + ')' : '') };
+  const self = parseDirectory(pg.body, pg.url);   // the page shared may be the exhibitor list itself
+  const facts = showFacts(pg.body, pg.url, null, self.entries.length > 0);
+  const hp = pages[1];
+  if (hp && hp.body && hp.code >= 200 && hp.code < 300 && sameSite(hostOf(hp.url), hostOf(pg.url))) {
+    const f2 = showFacts(hp.body, hp.url, null, parseDirectory(hp.body, hp.url).entries.length > 0);
+    ['start', 'end', 'venue', 'name'].forEach((k) => { if (!facts[k] && f2[k]) { facts[k] = f2[k]; facts.from = facts.from || f2.from; } });
+    if (!facts.start && f2.start) { facts.start = f2.start; facts.end = f2.end; }
+  }
+  const res = Object.assign({ listUrl: '', count: 0, listText: '' }, facts);
+  if (self.entries.length) return Object.assign(res, { listUrl: url, count: self.entries.length, self: true });
+  // otherwise its links, on the page and on the home page, best first; then the usual addresses
+  let cands = exhibitorLinks(pg.body, pg.url);
+  if (hp && hp.body && sameSite(hostOf(hp.url), hostOf(pg.url))) exhibitorLinks(hp.body, hp.url).forEach((c) => { if (!cands.some((x) => x.url === c.url)) cands.push(c); });
+  cands = cands.sort((a, b) => b.score - a.score).slice(0, 3);
+  const guesses = cands.length ? [] : EXH_GUESSES.map((g) => home.replace(/\/$/, '') + g);
+  const tryUrls = cands.map((c) => c.url).concat(guesses);
+  if (!tryUrls.length) return res;
+  const got = fetchPages(tryUrls, ctx);
+  let best = null;
+  got.forEach((g, i) => {
+    if (!g || g.blocked || !g.body || g.code < 200 || g.code >= 300) return;
+    const n = parseDirectory(g.body, g.url).entries.length;
+    const c = cands[i];
+    if ((c || n) && (!best || n > best.count)) best = { listUrl: tryUrls[i], count: n, listText: c ? c.text : '' };
+  });
+  if (best && (best.count || cands.length)) Object.assign(res, best);
+  return res;
 }
 
 function cleanUrls(text) {
@@ -2472,6 +2665,7 @@ function saveShow(p) {
     let s = p.id ? shows.find((x) => x.id === p.id) : null;
     const urls = cleanUrls(p.urls).join('\n');
     const fields = { name, sector: clip(p.sector, 40) || 'General', start: isoDay(p.start), end: isoDay(p.end) || isoDay(p.start), urls };
+    if (p.venue !== undefined || !s) fields.venue = clip(String(p.venue || '').replace(/\s+/g, ' '), 120);   // where it is held, for the map
     if (s) {
       Object.assign(s, fields);
       if (p.urls !== undefined && urls !== s.urls) s.status = 'new';

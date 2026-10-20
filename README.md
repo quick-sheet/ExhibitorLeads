@@ -57,6 +57,26 @@ This is a guide, not legal advice.
 2. Open the **Actions** tab and wait for **Deploy to Pages** to show a green tick (usually under a minute). Opening `sw.js` on the live address should show the new `exhibitorleads-vN` name.
 3. Fully close the app and reopen it. If it still looks the same, close and reopen once more.
 
+**Release 20 (Apps Script release 17).** Find exhibitions gets listings pages you browse yourself, sharing a show's own website fills in its dates, venue and exhibitor list, and a map pin opens the venue in Google Maps.
+
+1. Paste the new `Code.gs` over the old one and save. You do not need to run `authorise` or `setup` again.
+2. **Deploy, Manage deployments**, the pencil, **New version**, **Deploy**.
+3. Upload `index.html`, `core.js`, `sw.js` and `README.md`, and commit. Wait for the green tick in **Actions**, then fully close and reopen the app. Settings should say **Apps Script release: 17, up to date**.
+
+What release 20 changes:
+
+- **Find exhibitions, redesigned** (on each sector, under its exhibitions):
+  - **How it works**, in three steps: browse a listing, open the show's own site, share it to Exhibitor Leads.
+  - **Listings** that open in Chrome already filtered: for Baby and toddler, 10times UK Baby, Kids & Maternity; for crafts, 10times UK Arts & Crafts and exhibitions.co.uk Home, lifestyle & leisure; for every sector, the all-UK calendars of 10times and exhibitions.co.uk.
+  - **Your own search pages**: tap **+** beside Find exhibitions, paste the address of any filtered page (your cantonfair.net filter, say) and name it. It is kept on your sheet, so it is there on any phone; remove it with its ✕. Renaming a sector takes its pages along.
+  - **The five Google searches** stay, now with the search each one runs shown under its name.
+- **The app never reads the listings sites.** exhibitions.co.uk's and 10times' terms forbid automated reading, and cantonfair.net's robots.txt blocks its searches. You browse them; sharing one of their pages to the app offers to keep it as a search page instead.
+- **Share a show's own website, and the app does the rest.** From the listing, open the show's own site, then Chrome ⋮ → Share → Exhibitor Leads (on iPhone, copy its address and paste it into the link box). The app reads the site, where its robots.txt allows, and fills in what you have not typed yourself:
+  - **the dates and the venue**, marked “from its site” so you can check them;
+  - **the link to its exhibitor list**, from its menu (“Exhibitors”, “Exhibitor list”, “Who's exhibiting”, “Brands”), with how many names it found. “Become an exhibitor”, logins and stand booking pages are never taken.
+  - If the list is not up yet, or cannot be read, it says so: add the show anyway and load or paste the list later.
+- **Venue, and a map pin.** Add exhibition and Edit details have a Venue field. On an exhibition's screen a map pin beside its name opens the venue in Google Maps (the exhibition's name when no venue is set), and the venue shows under the dates.
+
 **Release 19 (Apps Script release 16).** Swipe to go back, drag popups down to close them, a new spinner that always turns, and one message for a recheck of everything.
 
 1. Paste the new `Code.gs` over the old one and save. You do not need to run `authorise` or `setup` again.

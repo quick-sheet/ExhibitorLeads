@@ -254,6 +254,43 @@ textarea.field { height: auto; min-height: 96px; padding: 10px 12px; resize: ver
 .day { margin: 26px 0 2px; font-size: 14px; font-weight: 500; color: var(--ink-3); }
 .section-title { margin: 32px 0 2px; font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
 .section-note { margin: 2px 0 0; font-size: 13.5px; color: var(--ink-3); }
+/* Find exhibitions: listings you browse yourself, the Google searches, and how a show gets from there into the app */
+.finder { margin-top: 30px; }
+.finder-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.finder-head .section-title { margin: 0; }
+.finder-head .ico-btn { margin-right: -10px; }
+.how { list-style: none; margin: 10px 0 0; padding: 14px 10px 12px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; border-radius: 18px;
+  background: linear-gradient(180deg, var(--raise), var(--bg)); border: 1px solid var(--line); counter-reset: how; }
+.how li { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 7px; font-size: 12.5px; line-height: 1.3; color: var(--ink-2); }
+.how li + li::before { content: ''; position: absolute; top: 17px; left: calc(-50% + 22px); width: calc(100% - 44px); border-top: 1px dashed var(--line-2); }
+.how .hi { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; background: var(--sun-soft); color: var(--sun); }
+.how .hi svg { width: 19px; height: 19px; }
+.finder-sub { margin: 20px 2px 8px; font-size: 13px; font-weight: 600; color: var(--ink-2); display: flex; justify-content: space-between; }
+.finder-sub span { font-weight: 400; color: var(--ink-3); }
+.src-group { border-radius: 18px; background: var(--raise); border: 1px solid var(--line); overflow: hidden; }
+.src { display: flex; align-items: center; }
+.src + .src { border-top: 1px solid var(--line); }
+.src-main { flex: 1; min-width: 0; display: grid; grid-template-columns: 38px minmax(0, 1fr) 18px; align-items: center; column-gap: 12px; padding: 10px 14px; min-height: 60px; color: inherit; text-decoration: none; transition: background .12s; }
+.src-main:active { background: var(--raise-2); }
+.src-main > svg { width: 18px; height: 18px; color: var(--ink-3); }
+.tile { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-size: 12px; font-weight: 700; letter-spacing: -.02em; background: var(--raise-2); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.tile.g { background: #fff; box-shadow: none; }
+.tile.g .logo { width: 20px; height: 20px; }
+.tile.mine { background: var(--sun-soft); color: var(--sun); box-shadow: none; }
+.src-name { display: block; font-size: 15px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.src-sub { display: block; font-size: 12.5px; color: var(--ink-3); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.src-x { width: 44px; height: 44px; flex: none; display: grid; place-items: center; color: var(--ink-3); margin-right: 4px; }
+.src-x svg { width: 18px; height: 18px; }
+/* reading a show's own website in Add exhibition */
+.look { margin: 10px 0 0; padding: 10px 12px; border-radius: 12px; font-size: 13.5px; line-height: 1.4; color: var(--ink-2); background: var(--raise-2); }
+.look.ok { color: var(--ink); background: color-mix(in srgb, var(--st-ok) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-ok) 40%, transparent); }
+.look.ok b { color: var(--st-ok); }
+.look.warn { color: var(--ink); background: color-mix(in srgb, var(--st-check) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-check) 40%, transparent); }
+.look small { display: block; color: var(--ink-2); font-size: 12.5px; margin-top: 2px; }
+.look .link-btn { margin-top: 6px; }
+.from { font-size: 11.5px; font-weight: 600; color: var(--st-ok); margin-left: 6px; }
+.from[hidden] { display: none; }
+.venue { margin: 2px 0 0; font-size: 14px; color: var(--ink-2); }
 .item, .ex { border-bottom: 1px solid var(--line); }
 .item-main, .ex-main { width: 100%; display: grid; align-items: center; text-align: left; min-width: 0; }
 .item-main { grid-template-columns: minmax(0, 1fr) 18px; column-gap: 12px; padding: 14px 0; min-height: 56px; }
@@ -466,7 +503,7 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
 <div class="toast" id="toast" role="status" popover="manual"></div>
 
-<script src="core.js?v=19"></script>
+<script src="core.js?v=20"></script>
 <script>
 (() => {
 'use strict';
@@ -501,6 +538,7 @@ const THEMES = [
 const S = {
   api: get('api', null),            // { url, token }
   shows: get('shows', []),
+  searches: get('searches', {}),
   showsAt: get('showsAt', 0),
   rows: {},                         // showId -> rows
   route: { v: 'home' },
@@ -558,6 +596,11 @@ const ICON = {
   down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>',
   copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg>',
   tick: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>',
+  ext: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16 16 8M9.5 8H16v6.5"/></svg>',
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg>',
+  browse: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
+  globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.8 3.9 5.8 3.9 9s-1.3 6.2-3.9 9c-2.6-2.8-3.9-5.8-3.9-9s1.3-6.2 3.9-9z"/></svg>',
+  share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.6M8.2 13.2l7.6 4.6"/></svg>',
   stack: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 3 9l9 5 9-5-9-5Z"/><path d="M3 14l9 5 9-5"/></svg>',
 };
 
@@ -609,7 +652,7 @@ function setUsage(u) {
 const oldScript = (e) => (/unknown action/i.test(e.message || '') ? 'Your Apps Script needs its new version first. The README says how (Update).' : e.message);
 
 // The release of Apps Script code this app expects. Shown in Settings; a warning appears when the script behind the app is older.
-const EXPECT_BUILD = 16;
+const EXPECT_BUILD = 17;
 
 async function checkBuild() {
   if (!S.api) return;
@@ -625,8 +668,9 @@ async function refreshShows() {
   if (!S.api) return false;
   try {
     const j = await call('list');
-    const changed = JSON.stringify(j.shows || []) !== JSON.stringify(S.shows);
+    const changed = JSON.stringify(j.shows || []) !== JSON.stringify(S.shows) || (j.searches && JSON.stringify(j.searches) !== JSON.stringify(S.searches));
     S.shows = j.shows || [];
+    if (j.searches) { S.searches = j.searches; put('searches', S.searches); }
     setUsage(j.usage);
     S.showsAt = Date.now();
     put('shows', S.shows); put('showsAt', S.showsAt);
@@ -927,10 +971,55 @@ function sectorHtml(sector) {
         </div></div>
       ${shows.length ? leadsHtml({ n: String(shows.length), text: shows.length === 1 ? 'exhibition' : 'exhibitions' }, t, 'No exhibitors loaded yet.', E.running && E.showId === '*' && !E.stop) : '<p class="empty-body">No exhibitions yet. Run one of the searches below, open a show’s exhibitor list, then add it here.</p>'}
     </section>
-    <h2 class="section-title" style="margin-top:8px">Find exhibitions</h2>
-    <p class="section-note">These open a Google search in a new tab. Find a show’s exhibitor list, then share it to Exhibitor Leads or copy its address.</p>
-    <div class="chips" style="margin-top:12px">${links.map((l) => `<a class="chip" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join('')}</div>
-    ${groups.map((g) => `<h2 class="day">${esc(g.label)}</h2>${g.shows.map(showRow).join('')}`).join('')}`;
+    ${shows.length ? groups.map((g) => `<h2 class="day">${esc(g.label)}</h2>${g.shows.map(showRow).join('')}`).join('') + finderHtml(sector, links) : finderHtml(sector, links)}`;
+}
+
+/**
+ * "Find exhibitions": how a show gets into the app (browse, open its own site, share), the listings pages for this sector and
+ * the ones you saved, then the Google searches. Everything opens in Chrome; the app never reads these sites itself.
+ */
+function finderHtml(sector, links) {
+  const pages = C.finderPages(sector, (S.searches || {})[String(sector).toLowerCase()]);
+  const row = (p) => `<div class="src"><a class="src-main" href="${esc(p.url)}" target="_blank" rel="noopener" data-chrome>
+      <span class="tile${p.mine ? ' mine' : ''}" aria-hidden="true">${esc(p.tile)}</span>
+      <span class="src-txt"><span class="src-name">${esc(p.name)}</span><span class="src-sub">${esc(p.sub)}</span></span>${ICON.ext}</a>
+      ${p.mine ? `<button class="src-x" type="button" data-act="remove-search" data-url="${esc(p.url)}" aria-label="Remove ${esc(p.name)}" title="Remove">${ICON.x}</button>` : ''}</div>`;
+  const g = (l) => `<div class="src"><a class="src-main" href="${esc(l.url)}" target="_blank" rel="noopener" data-chrome>
+      <span class="tile g" aria-hidden="true">${logo('google')}</span>
+      <span class="src-txt"><span class="src-name">${esc(l.label)}</span><span class="src-sub">${esc(C.searchText(l.url))}</span></span>${ICON.ext}</a></div>`;
+  return `<section class="finder" aria-labelledby="finderH">
+      <div class="finder-head"><h2 class="section-title" id="finderH">Find exhibitions</h2>
+        <button class="ico-btn main" type="button" data-act="add-search" aria-label="Save a search page" title="Save a search page">${ICON.plus}</button></div>
+      <ol class="how" aria-label="How to add a show">
+        <li><span class="hi">${ICON.browse}</span>Browse a listing</li>
+        <li><span class="hi">${ICON.globe}</span>Open the show’s own site</li>
+        <li><span class="hi">${ICON.share}</span>Share it to Exhibitor Leads</li>
+      </ol>
+      <h3 class="finder-sub">Listings <span>open in Chrome</span></h3>
+      <div class="src-group">${pages.map(row).join('')}</div>
+      <h3 class="finder-sub">Google searches</h3>
+      <div class="src-group">${links.map(g).join('')}</div>
+      <p class="section-note" style="margin-top:10px">The app never reads these listings sites: their terms ask that only people browse them. It reads a show’s own website once you share it.</p>
+    </section>`;
+}
+
+/** Saves a filtered listings page under a sector, from Find exhibitions or from a listings page shared to the app. */
+function openAddSearch(sector, pre) {
+  pre = pre || {};
+  const sectors = C.sectorOptions(S.shows).map((o) => o.name);
+  openSheet(`${head(pre.shared ? 'A listings page' : 'Save a search page')}
+    <p>${pre.shared ? `${esc(pre.host || 'This')} is a listings site, so Exhibitor Leads does not read it. From it, open the show’s own website and share that. Or keep this page here to browse again.`
+      : 'Set the filters you like on a listings site in Chrome, copy the page address, and paste it here. It appears under Find exhibitions.'}</p>
+    <form id="searchForm" novalidate>
+      <label class="lbl" for="ss-url" style="margin-top:6px">Page address</label>
+      <input class="field" id="ss-url" name="url" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://www.cantonfair.net/…" value="${esc(pre.url || '')}">
+      <label class="lbl" for="ss-label">Name</label>
+      <input class="field" id="ss-label" name="label" maxlength="60" autocomplete="off" placeholder="For example cantonfair, England + baby" value="${esc(pre.label || '')}">
+      <label class="lbl" for="ss-sector">Sector</label>
+      <input class="field" id="ss-sector" name="sector" list="ssList" maxlength="40" autocomplete="off" value="${esc(sector || '')}">
+      <datalist id="ssList">${sectors.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>
+      <div class="actions"><button class="btn primary" type="submit">Save search page</button>${pre.shared ? '<button class="btn" type="button" data-act="add-show-blank">Add an exhibition</button>' : '<button class="btn" type="button" data-act="close">Cancel</button>'}</div>
+    </form>`);
 }
 
 function showRow(s) {
@@ -970,12 +1059,12 @@ function updateShow() {
   const running = E.running && E.showId === s.id && !E.stop;
   renderHeader();
   const actions = showActions(s, c);
-  const key = [s.id, s.name, s.start, s.end, c.total, c.done, c.corporate, c.check, c.consent, c.google, c.microsoft, running, s.status, s.statusNote, s.urls.length].join('|');
+  const key = [s.id, s.name, s.start, s.end, s.venue, c.total, c.done, c.corporate, c.check, c.consent, c.google, c.microsoft, running, s.status, s.statusNote, s.urls.length].join('|');
   if (hero.dataset.key !== key) {
     hero.dataset.key = key;
     hero.innerHTML = `${c.total ? '' : barsEmpty()}
-      <div class="title-row"><div><h1 class="sat-name">${esc(s.name)}</h1><p class="when num">${esc(group.id === 'undated' ? 'Dates not set' : `${C.fmtDates(s.start, s.end)}, ${group.label.toLowerCase()}`)}</p></div>
-      <div class="row-icons">${c.total ? `<button class="ico-btn" type="button" data-act="csv" aria-label="Download CSV" title="Download CSV">${ICON.down}</button>` : ''}<button class="ico-btn" type="button" data-act="show-menu" aria-label="Exhibition options" title="Exhibition options">${ICON.more}</button></div></div>
+      <div class="title-row"><div><h1 class="sat-name">${esc(s.name)}</h1><p class="when num">${esc(group.id === 'undated' ? 'Dates not set' : `${C.fmtDates(s.start, s.end)}, ${group.label.toLowerCase()}`)}</p>${s.venue ? `<p class="venue">${esc(s.venue)}</p>` : ''}</div>
+      <div class="row-icons"><a class="ico-btn" href="${esc(C.mapsUrl(s.venue || s.name))}" target="_blank" rel="noopener" aria-label="${esc(s.venue ? 'Open ' + s.venue + ' in Google Maps' : 'Find this exhibition in Google Maps')}" title="${s.venue ? 'Open the venue in Google Maps' : 'Find it in Google Maps'}">${ICON.pin}</a>${c.total ? `<button class="ico-btn" type="button" data-act="csv" aria-label="Download CSV" title="Download CSV">${ICON.down}</button>` : ''}<button class="ico-btn" type="button" data-act="show-menu" aria-label="Exhibition options" title="Exhibition options">${ICON.more}</button></div></div>
       ${leadsHtml(null, c, C.summary(c, s), running)}
       ${actions ? `<div class="actions">${actions}</div>` : ''}`;
   }
@@ -1245,8 +1334,10 @@ function showForm(s, pre) {
       <label class="lbl" for="sf-sector">Sector</label>
       <input class="field" id="sf-sector" name="sector" list="sectorList" value="${esc(v.sector || p.sector || (S.route.v === 'sector' ? S.route.sector : S.set.lastSector) || '')}" maxlength="40" autocomplete="off" placeholder="For example Whisky and spirits">
       <datalist id="sectorList">${sectors.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>
-      <div class="two"><div><label class="lbl" for="sf-start">Starts</label><input class="field" id="sf-start" name="start" type="date" value="${esc(v.start || '')}"></div>
+      <div class="two"><div><label class="lbl" for="sf-start">Starts<span class="from" id="sf-dates-from" hidden>from its site</span></label><input class="field" id="sf-start" name="start" type="date" value="${esc(v.start || '')}"></div>
       <div><label class="lbl" for="sf-end">Ends</label><input class="field" id="sf-end" name="end" type="date" value="${esc(v.end || '')}"></div></div>
+      <label class="lbl" for="sf-venue">Venue<span class="from" id="sf-venue-from" hidden>from its site</span></label>
+      <input class="field" id="sf-venue" name="venue" value="${esc(v.venue || '')}" maxlength="120" autocomplete="off" placeholder="For example Olympia London">
       ${v.id ? '' : `<div class="lbl-row"><span class="lbl" id="sf-how">Exhibitors from</span>
         <div class="mode" role="radiogroup" aria-labelledby="sf-how">
           <button type="button" role="radio" aria-checked="true" data-act="sf-mode" data-mode="link">Link</button>
@@ -1255,7 +1346,8 @@ function showForm(s, pre) {
       <div data-pane="link">
         <label class="lbl" for="sf-urls"${v.id ? '' : ' style="margin-top:4px"'}>Exhibitor list link</label>
         <textarea class="field" id="sf-urls" name="urls" rows="2" placeholder="Paste the address of the exhibitor list" autocapitalize="off" spellcheck="false">${esc((v.urls || []).join('\n') || p.url || '')}</textarea>
-        <p class="hint">Add more than one link, each on its own line, if the list runs over several pages.${v.id ? ' You can also paste the list itself from the exhibition menu.' : ' Have the list itself? Choose List.'}</p>
+        <p class="hint">${v.id ? 'Add more than one link, each on its own line, if the list runs over several pages. You can also paste the list itself from the exhibition menu.' : 'Paste the show’s own website: the app finds its exhibitor list. Or the list’s own address. Have the list itself? Choose List.'}</p>
+        ${v.id ? '' : '<div class="look" id="sf-look" role="status" hidden></div>'}
       </div>
       ${v.id ? '' : `<div data-pane="list" hidden>
         <label class="lbl" for="sf-list" style="margin-top:4px">Exhibitors</label>
@@ -1286,7 +1378,59 @@ function linkBoxToList() {
   setShowMode('list', 'That looks like a list of exhibitors, so it will be added as one.');
   return true;
 }
-function openAddShow(pre) { openSheet(head('Add exhibition') + showForm(null, pre)); linkBoxToList(); }
+function openAddShow(pre) {
+  // a listings page shared to the app: offer to keep it as a search page; the app does not read it
+  if (pre && pre.url && C.isDirectory(pre.url)) {
+    openAddSearch(S.route.v === 'sector' ? S.route.sector : (S.set.lastSector || ''), { url: pre.url, label: pre.name, shared: true, host: (/^https?:\/\/(?:www\.)?([^\/?#]+)/i.exec(pre.url) || [])[1] });
+    return;
+  }
+  openSheet(head('Add exhibition') + showForm(null, pre));
+  if (!linkBoxToList() && pre && pre.url) lookUp(pre.url);
+}
+
+/**
+ * Reads the show's own website (Apps Script does, where its robots.txt allows) and fills in what it says: the dates, the
+ * venue, the name if empty, and the link to its exhibitor list. Never overwrites what you typed. Says what it found, or why not.
+ */
+let lookSeq = 0;
+async function lookUp(url) {
+  const f = $('#showForm'), box = $('#sf-look');
+  if (!f || f.dataset.id || !box) return;
+  const seq = ++lookSeq;
+  const still = () => seq === lookSeq && document.body.contains(box);
+  box.hidden = false; box.className = 'look';
+  box.innerHTML = '<span class="spinner" aria-hidden="true"></span>Looking at the show’s website…';
+  let j;
+  try { j = await call('lookShow', { url }); } catch (e) {
+    if (!still()) return;
+    if (/unknown action/i.test(e.message)) { box.hidden = true; return; }   // an Apps Script from before release 17
+    box.className = 'look warn'; box.textContent = 'Could not read the website: ' + e.message; return;
+  }
+  if (!still()) return;
+  const set = (id, val, mark) => { const el = $(id); if (el && val && !el.value.trim()) { el.value = val; if (mark) $(mark).hidden = false; return true; } return false; };
+  if (j.directory) {
+    box.className = 'look warn';
+    box.innerHTML = `That’s a listings page on ${esc(j.host)}, which the app does not read. From it, open the show’s own website and share that.<br><button class="link-btn" type="button" data-act="save-listing" data-url="${esc(url)}">Keep it as a search page</button>`;
+    return;
+  }
+  if (j.blocked || j.error) { box.className = 'look warn'; box.textContent = (j.note || j.error) + '. Add the exhibitor list link yourself, or choose List and paste it.'; return; }
+  set('#sf-name', j.name);
+  if (set('#sf-start', j.start, '#sf-dates-from')) set('#sf-end', j.end);
+  set('#sf-venue', j.venue, '#sf-venue-from');
+  const box2 = $('#sf-urls');
+  if (j.listUrl && !j.self && box2 && C.validUrl(box2.value.trim()) === C.validUrl(url)) box2.value = j.listUrl;
+  if (j.listUrl && j.count) {
+    box.className = 'look ok';
+    box.innerHTML = j.self ? `<b>✓ This is the exhibitor list</b><small>About ${esc(j.count)} names on it</small>`
+      : `<b>✓ Found the exhibitor list</b> on the show’s website<small>${j.listText ? `“${esc(j.listText)}” · ` : ''}about ${esc(j.count)} names</small>`;
+  } else if (j.listUrl) {
+    box.className = 'look warn';
+    box.innerHTML = `Found its exhibitor page${j.listText ? ` (“${esc(j.listText)}”)` : ''}, but no names could be read from it yet.<small>Try Add and load anyway, or choose List and paste the names.</small>`;
+  } else {
+    box.className = 'look';
+    box.innerHTML = 'No exhibitor list on its website yet.<small>Add the show now and load the list when it appears, often a few weeks before. Or paste it.</small>';
+  }
+}
 function openEditShow(s) { openSheet(head('Edit exhibition') + showForm(s)); }
 
 function openPaste(s) {
@@ -1645,7 +1789,7 @@ async function submitShow(form) {
   const btn = form.querySelector('[type=submit]');
   await withBusy(btn, async () => {
     try {
-      const j = await call('saveShow', { id: id || undefined, name, sector, start: f.get('start') || '', end: f.get('end') || '', urls: urls.join('\n') });
+      const j = await call('saveShow', { id: id || undefined, name, sector, start: f.get('start') || '', end: f.get('end') || '', urls: urls.join('\n'), venue: String(f.get('venue') || '').trim() });
       S.set.lastSector = sector; saveSet();
       // the list goes in with the exhibition, so its checks start at once
       let pasted = null, pasteErr = null;
@@ -1687,6 +1831,7 @@ async function submitRename(form) {
       closeSheet();
       await refreshShows();
       S.set.lastSector = to; saveSet();
+      try { const j = await call('saveSearch', { from, to }); S.searches = j.searches || S.searches; put('searches', S.searches); } catch (e) { /* an older Apps Script: the pages stay under the old name */ }
       S.route = { v: 'sector', sector: to };
       history.replaceState({ r: S.route, prev: (history.state || {}).prev || null }, '');
       renderMain();
@@ -1727,6 +1872,14 @@ async function act(name, t) {
       if (S.route.v === 'show') { if (s) runChecks(s.id); } else runAllChecks();
       break;
     case 'more': S.limit += 200; updateShow(); break;
+    case 'add-search': openAddSearch(S.route.v === 'sector' ? S.route.sector : (S.set.lastSector || '')); break;
+    case 'add-show-blank': closeSheet(); openAddShow(null); break;
+    case 'save-listing': { const f = $('#showForm'); openAddSearch(f ? C.matchSector(f.sector.value, S.shows) || f.sector.value : '', { url: d.url, shared: true, host: (/^https?:\/\/(?:www\.)?([^\/?#]+)/i.exec(d.url) || [])[1] }); break; }
+    case 'remove-search': if (S.route.v === 'sector') {
+      await withBusy(t, async () => {
+        try { const j = await call('saveSearch', { sector: S.route.sector, url: d.url, remove: true }); S.searches = j.searches || {}; put('searches', S.searches); renderMain(); toast('Search page removed'); } catch (e) { toast(oldScript(e)); }
+      });
+    } break;
     case 'sf-mode': setShowMode(t.dataset.mode); if (t.dataset.mode === 'list') linkBoxToList(); break;
     case 'open-sheet': if (S.status && S.status.sheetUrl) window.open(S.status.sheetUrl, '_blank', 'noopener'); break;
     case 'delete-show': if (s) openConfirm('Delete this exhibition?', `${s.name} and its exhibitors will be removed from your sheet. This cannot be undone.`, 'delete-show-yes', 'Delete exhibition', s.id); break;
@@ -1900,6 +2053,19 @@ document.addEventListener('submit', async (e) => {
   else if (f.id === 'connectForm') {
     const ok = await withBusy(f.querySelector('[type=submit]'), () => connect(f.url.value, f.token.value));
     if (ok) { renderMain(); renderHeader(); if (S.shared) { const p = S.shared; S.shared = null; closeSheet(); openAddShow(p); } else openSettings(); }
+  } else if (f.id === 'searchForm') {
+    const sector = C.matchSector(f.sector.value, S.shows) || String(f.sector.value || '').trim();
+    const url = C.validUrl(f.url.value.trim());
+    if (!url) { toast('Paste the page address, starting https://'); return; }
+    if (!sector) { toast('Choose a sector for it'); return; }
+    await withBusy(f.querySelector('[type=submit]'), async () => {
+      try {
+        const j = await call('saveSearch', { sector, url, label: f.label.value.trim() });
+        S.searches = j.searches || {}; put('searches', S.searches);
+        closeSheet(); if (S.route.v === 'sector') renderMain();
+        toast(`Saved under Find exhibitions for ${sector}`);
+      } catch (err) { toast(oldScript(err)); }
+    });
   } else if (f.id === 'pasteForm') {
     const text = f.text.value.trim();
     if (!text) { toast('Paste at least one name'); return; }
@@ -1949,7 +2115,9 @@ document.addEventListener('input', (e) => {
   if (e.target.id === 'sf-urls') {
     const ta = e.target, grew = ta.value.length - (+ta.dataset.len || 0);
     ta.dataset.len = ta.value.length;
-    if (/^insertFromPaste|^insertFromDrop/.test(e.inputType || '') || grew > 15) linkBoxToList();
+    if (/^insertFromPaste|^insertFromDrop/.test(e.inputType || '') || grew > 15) {
+      if (!linkBoxToList()) { const k = C.linkBoxKind(ta.value); if (k.kind === 'links' && k.urls.length === 1) lookUp(k.urls[0]); }
+    }
     return;
   }
   if (e.target.id !== 'q') return;

@@ -321,6 +321,52 @@
     ];
   }
 
+  /* ---------- Finding exhibitions: listings you browse yourself ----------
+   * These sites say in their terms or robots.txt that automated tools may not read them, so the app only opens them for you
+   * (in Chrome, already filtered) and never reads them. The same list as DIRECTORY_HOSTS in the Apps Script. */
+  const DIRECTORY_HOSTS = /(^|\.)(10times\.com|exhibitions\.co\.uk|cantonfair\.net|eventseye\.com|neventum\.com|tradefairdates\.com|expocart\.com|luminik\.io|eventslist\.co\.uk|expolume\.com|ntradeshows\.com|tradeshowsguide\.com|google\.[a-z.]+|bing\.com|duckduckgo\.com|eventbrite\.[a-z.]+|allevents\.in|facebook\.com|instagram\.com)$/;
+  const hostOfUrl = (u) => { const m = /^https?:\/\/([^\/?#:@]+)/i.exec(String(u || '').trim()); return m ? m[1].toLowerCase() : ''; };
+  /** A page from a listings or search site: browsed by you, never read by the app. */
+  function isDirectory(url) { const h = hostOfUrl(url); return !!h && DIRECTORY_HOSTS.test(h); }
+  const TENX = '10times', EXCO = 'exhibitions.co.uk';
+  const exCat = (slug, sub) => ({ name: EXCO, sub, url: `https://www.exhibitions.co.uk/event-category/${slug}/`, tile: 'ex' });
+  // Listings pages for a sector, chosen by words in its name. 10times category addresses used here were checked to exist.
+  const FINDER = [
+    [/\b(baby|babies|toddler|nursery|maternity|pregnan|parent|kid|child|infant|mum)/i, [{ name: TENX, sub: 'UK · Baby, Kids & Maternity', url: 'https://10times.com/unitedkingdom/baby-kids/tradeshows', tile: '10x' }]],
+    [/\b(craft|arts?\b|quilt|knit|sew|stitch|yarn|wool|hobb|maker|handmade|paint|gift)/i, [{ name: TENX, sub: 'UK · Arts & Crafts', url: 'https://10times.com/unitedkingdom/arts-crafts/tradeshows', tile: '10x' }, exCat('home-lifestyle-leisure', 'Home, lifestyle & leisure')]],
+    [/\b(food|drink|whisk|wine|gin\b|spirit|beer|cider|coffee|bak|hospitality)/i, [exCat('food-drink-hospitality', 'Food, drink & hospitality')]],
+    [/\b(motor|caravan|camper|car\b|cars\b|vehicle|cycl|bike|boat)/i, [exCat('automotive-mobility', 'Automotive & mobility')]],
+    [/\b(fashion|beauty|cloth|retail|jewel)/i, [exCat('fashion-beauty-retail', 'Fashion, beauty & retail')]],
+    [/\b(home|interior|garden|lifestyle|leisure|wedding)/i, [exCat('home-lifestyle-leisure', 'Home, lifestyle & leisure')]],
+    [/\b(tech|digital|software|media)/i, [exCat('technology-media-telecoms', 'Technology, media & telecoms')]],
+    [/\b(health|medical|wellbeing|wellness)/i, [exCat('healthcare-medical-life-sciences', 'Healthcare & life sciences')]],
+  ];
+  const FINDER_ALL = [{ name: TENX, sub: 'UK · All trade shows', url: 'https://10times.com/unitedkingdom/tradeshows', tile: '10x' }, { name: EXCO, sub: 'UK show calendar', url: 'https://www.exhibitions.co.uk/events/', tile: 'ex' }];
+  /** A short tile for a saved page: "10x", "ex", "CBS", or two letters of its site. */
+  function tileFor(url) {
+    const h = hostOfUrl(url).replace(/^www\./, '');
+    if (/(^|\.)10times\.com$/.test(h)) return '10x';
+    if (/exhibitions\.co\.uk$/.test(h)) return 'ex';
+    if (/cantonfair\.net$/.test(h)) return 'CBS';
+    if (/(^|\.)google\./.test(h)) return 'G';
+    return (h.replace(/[^a-z0-9]/g, '').slice(0, 2) || '··').toUpperCase();
+  }
+  /**
+   * What "Find exhibitions" lists for a sector: listings pages chosen for it, then the all-UK calendars, then the pages you saved
+   * ({ label, url }), each { name, sub, url, tile, mine }. A saved page that repeats a listed one is shown once, as yours.
+   */
+  function finderPages(sector, saved) {
+    const own = [];
+    FINDER.forEach(([re, pages]) => { if (re.test(String(sector || ''))) pages.forEach((p) => { if (!own.some((x) => x.url === p.url)) own.push(p); }); });
+    const mine = [].concat(saved || []).filter((x) => x && validUrl(x.url)).map((x) => ({ name: String(x.label || hostOfUrl(x.url)), sub: hostOfUrl(x.url).replace(/^www\./, ''), url: x.url, tile: tileFor(x.url), mine: true }));
+    const listed = own.concat(FINDER_ALL.filter((p) => !own.some((x) => x.url === p.url))).filter((p) => !mine.some((m) => m.url === p.url));
+    return listed.concat(mine);
+  }
+  /** Google's own search for a place, which opens the Google Maps app where there is one. */
+  function mapsUrl(q) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(String(q || '').replace(/\s+/g, ' ').trim()); }
+  /** What a Google search link searches for, from its address: "baby and toddler exhibition UK 2026 dates tickets". */
+  function searchText(url) { const m = /[?&]q=([^&#]*)/.exec(String(url || '')); try { return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : ''; } catch (e) { return ''; } }
+
   /* ---------- Sharing and links ---------- */
 
   /**
@@ -670,7 +716,7 @@
     STATUS_LABEL, statusOf, isGoogle, isMicrosoft, providerOf, countRows, workspaceShort, workspaceLabel, rowSub, rowParts, companyTypeLabel, companyUrl, legalLabel, emailRule, emailKindLabel,
     FILTERS, filterRows, filterCount, summary, isUnread, shares, listedIn, listedCount, reachSummary, makeTopic, showFromHash,
     SECTOR_PRESETS, cleanSector, matchSector, sectorsFrom, searchLinks,
-    validUrl, linkBoxKind, whereParts, parseShared, validApiUrl, slug,
+    validUrl, linkBoxKind, whereParts, parseShared, isDirectory, finderPages, tileFor, mapsUrl, searchText, validApiUrl, slug,
     CSV_COLUMNS, csvCell, toCsv, mergeBySite, usage, sectorOptions, resolveSector, leadGroups, barLabel,
     evidenceRows, speedLines, recheckSummary, explainText, scriptOutdated, chromeIntent, waitTime, waitingLine,
   };
