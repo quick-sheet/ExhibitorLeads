@@ -526,7 +526,7 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
 <div class="toast" id="toast" role="status" popover="manual"></div>
 
-<script src="core.js?v=21"></script>
+<script src="core.js?v=22"></script>
 <script>
 (() => {
 'use strict';
@@ -933,6 +933,7 @@ function renderNotices() {
 function renderMain() {
   const r = S.route;
   $('#main').innerHTML = r.v === 'sector' ? sectorHtml(r.sector) : r.v === 'diary' ? diaryHtml(r.sector) : r.v === 'show' ? showShellHtml() : homeHtml();
+  if (r.v === 'diary') applyDiaryQ();
   renderHeader();
   if (r.v === 'show') updateShow();
 }
@@ -1081,17 +1082,36 @@ function diaryHtml(sector) {
   let v = C.diaryView(d, { type: S.diaryType }, today(), S.shows);
   if (S.diaryType !== 'all' && !v.counts[S.diaryType]) { S.diaryType = 'all'; v = C.diaryView(d, { type: 'all' }, today(), S.shows); }
   const chip = (id, label) => `<button class="chip" type="button" data-act="diary-type" data-type="${id}" aria-pressed="${S.diaryType === id}">${esc(label)} <span class="n num">${v.counts[id]}</span></button>`;
-  const chips = chip('all', 'All') + C.DIARY_TYPES.filter((t) => v.counts[t.id]).map((t) => chip(t.id, t.label)).join('');
+  const chips = chip('all', 'All') + C.diaryTypes(d).filter((t) => v.counts[t.id]).map((t) => chip(t.id, t.label)).join('');
   const key = Object.keys(C.DIARY_DATES).map((k) => `<span class="dy-st ${k}" title="${esc(C.DIARY_DATES[k].help)}">${DIARY_MARK[k]}${esc(C.DIARY_DATES[k].label)}</span>`).join('');
   const list = v.groups.length ? v.groups.map((g) => `<h2 class="day">${esc(g.label)}</h2>${g.items.map(diaryRow).join('')}`).join('')
     : '<p class="empty-list">No shows still to come in this diary. It is updated with each release.</p>';
   return top(d.about || `Shows to research for ${sector}`, `<p class="dy-key" aria-label="What the date marks mean">${key}</p>`)
-    + `<div class="chips filters" role="group" aria-label="Type of show">${chips}</div>${list}
+    + `<div class="chips filters" role="group" aria-label="Type of show">${chips}</div>
+    <form class="quiet-search" id="diaryFind" role="search"><input class="field" id="dq" type="search" placeholder="Search this diary: a show, town or craft" autocomplete="off" enterkeyhint="search" aria-label="Search this diary" value="${esc(S.diaryQ || '')}"></form>
+    <div id="diaryList">${list}<p class="empty-list" id="dqNone" hidden>No shows match. Clear the search or choose All.</p></div>
     <p class="foot">${esc(C.diaryChecked(d.checked))}. Dates change, so confirm on the show’s own site before booking. Tap a date mark to see where it came from.</p>`;
 }
 
+/** Shows only the rows with every word typed (name, town, venue, kind of show, who exhibits), and the months that still have one. */
+function applyDiaryQ() {
+  const box = $('#diaryList');
+  if (!box) return;
+  const words = C.plainText(S.diaryQ || '').split(' ').filter(Boolean);
+  let shown = 0, head = null, inHead = 0;
+  const close = () => { if (head) head.hidden = inHead === 0; };
+  for (const el of box.children) {
+    if (el.matches('h2.day')) { close(); head = el; inHead = 0; continue; }
+    if (!el.classList.contains('dy')) continue;
+    const ok = words.every((w) => el.dataset.q.indexOf(w) >= 0);
+    el.hidden = !ok; if (ok) { shown++; inHead++; }
+  }
+  close();
+  $('#dqNone').hidden = shown > 0 || !box.querySelector('.dy');
+}
+
 function diaryRow(e) {
-  const type = C.DIARY_TYPES.find((t) => t.id === e.type);
+  const type = C.diaryTypes(diaryData(S.route.sector)).find((t) => t.id === e.type);
   const mark = C.DIARY_DATES[e.dates] ? e.dates : 'tbc';
   const name = C.diaryName(e);
   const icons = [];
@@ -1103,7 +1123,8 @@ function diaryRow(e) {
   const label = `${DIARY_MARK[mark]}${esc(C.DIARY_DATES[mark].label)}`;
   const st = e.source ? `<a class="dy-st ${mark}" href="${esc(e.source)}" target="_blank" rel="noopener" data-chrome="1" title="${esc(C.DIARY_DATES[mark].help)}. Source: ${esc(e.sourceName || '')}">${label}</a>`
     : `<span class="dy-st ${mark}" title="${esc(C.DIARY_DATES[mark].help)}">${label}</span>`;
-  return `<div class="dy">
+  const words = [e.name, e.edition, e.venue, e.who, type && type.one, e.start ? C.fmtDates(e.start, e.end) : e.when].filter(Boolean).join(' ');
+  return `<div class="dy" data-q="${esc(C.plainText(words))}">
       ${type ? `<p class="dy-type">${esc(type.one)}</p>` : ''}
       <p class="dy-name">${esc(e.name)}${e.edition ? ` <span>· ${esc(e.edition)}</span>` : ''}</p>
       <p class="dy-when num">${e.phase === 'live' ? '<b>On now</b> · ' : ''}${esc(e.start ? C.fmtDates(e.start, e.end) : e.when || 'Dates not out yet')}</p>
@@ -1982,7 +2003,7 @@ async function act(name, t) {
     case 'install': if (S.installEvt) { S.installEvt.prompt(); S.installEvt = null; renderNotices(); } break;
     case 'add-show': openAddShow(S.shared ? S.shared : null); S.shared = null; break;
     case 'open-search': openFind(); break;
-    case 'diary': if (S.route.v === 'sector') go({ v: 'diary', sector: S.route.sector }); break;
+    case 'diary': if (S.route.v === 'sector') { if (S.diaryFor !== S.route.sector) { S.diaryQ = ''; S.diaryType = 'all'; S.diaryFor = S.route.sector; } go({ v: 'diary', sector: S.route.sector }); } break;
     case 'diary-type': S.diaryType = d.type || 'all'; renderMain(); break;
     case 'diary-add': { const e = diaryEntry(d.i); if (e) openAddShow(Object.assign(C.diaryPrefill(e, S.route.sector), { diary: true })); break; }
     case 'rename-sector': if (S.route.v === 'sector') openRenameSector(S.route.sector); break;
@@ -2249,6 +2270,7 @@ document.addEventListener('input', (e) => {
     }
     return;
   }
+  if (e.target.id === 'dq') { S.diaryQ = e.target.value; applyDiaryQ(); return; }
   if (e.target.id !== 'q') return;
   clearTimeout(qTimer);
   qTimer = setTimeout(() => { S.q = e.target.value; S.limit = 200; updateShow(); }, 150);

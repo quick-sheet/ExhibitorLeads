@@ -383,7 +383,9 @@
   /* ---------- Show diary: researched shows for a sector, from a file in the app ---------- */
 
   // Which diary a sector gets, chosen by words in its name like the listings above. One file per researched sector.
-  const DIARIES = [[BABY_WORDS, 'diary-baby.json']];
+  // Arts and crafts sectors: whole words, and not martial or performing arts.
+  const CRAFT_WORDS = /^(?!.*\b(martial|performing)\s+arts?\b)(?=.*\b(crafts?|crafting|arts?|artists?|quilt\w*|knit\w*|sew\w*|stitch\w*|yarns?|wool|handmade|hobb(y|ies)|hobbycrafts?|papercraft\w*|cardmaking|scrapbook\w*|embroider\w*|ceramics?|pottery|potters?|haberdash\w*)\b)/i;
+  const DIARIES = [[BABY_WORDS, 'diary-baby.json'], [CRAFT_WORDS, 'diary-crafts.json']];
   /** The diary file for a sector, or '' when there is none yet. */
   function diaryFile(sector) { const d = DIARIES.find(([re]) => re.test(String(sector || ''))); return d ? d[1] : ''; }
 
@@ -394,6 +396,8 @@
     { id: 'local', label: 'Local fairs', one: 'Local fair' },
     { id: 'pro', label: 'Early years', one: 'Early years & maternity' },
   ];
+  /** A diary's own kinds of show (a crafts diary has art fairs and craft shows, say), or the baby ones. */
+  function diaryTypes(d) { return d && Array.isArray(d.types) && d.types.length ? d.types.filter((t) => t && t.id && t.label) : DIARY_TYPES; }
   const DIARY_DATES = {
     organiser: { label: 'Organiser dates', help: 'Dates from the organiser’s own site or announcement' },
     listing: { label: 'Listing, check', help: 'Dates from a listing site only, so check with the organiser' },
@@ -422,6 +426,8 @@
   // A web address reduced to compare: no scheme, no www, no query, no trailing slash, lower case.
   const sameAddr = (u) => String(validUrl(u) || '').toLowerCase().replace(/^https?:\/\/(www\.)?/, '').replace(/[?#].*$/, '').replace(/\/+$/, '');
   const plainName = (s) => String(s || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+  /** Words to search in, or to search for: lower case, accents and punctuation gone ("Potfest in the Pens · Penrith" → "potfest in the pens penrith"). */
+  const plainText = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
   /** The name a diary show is given when it is added as an exhibition. One not dated yet keeps its year: "… Olympia London 2027". */
   function diaryName(e) {
     const n = String(e.full || [e.name, e.edition].filter(Boolean).join(' ')).trim();
@@ -460,7 +466,7 @@
     const type = (opts && opts.type) || 'all';
     const live = ((diary && diary.shows) || []).map((e, i) => Object.assign({}, e, { i, phase: diaryPhase(e, today) })).filter((e) => e.phase !== 'past');
     const counts = { all: live.length };
-    DIARY_TYPES.forEach((t) => { counts[t.id] = live.filter((e) => e.type === t.id).length; });
+    diaryTypes(diary).forEach((t) => { counts[t.id] = live.filter((e) => e.type === t.id).length; });
     const order = (e) => (e.start || (String(e.month || '9999-99') + '-32'));
     const picked = live.filter((e) => type === 'all' || e.type === type)
       .sort((x, y) => (order(x) < order(y) ? -1 : order(x) > order(y) ? 1 : String(x.name).localeCompare(y.name)))
@@ -484,7 +490,11 @@
 
   /** What Add exhibition starts with for a diary show: its name, sector, dates, venue, and the exhibitor list link or its website. */
   function diaryPrefill(e, sector) {
-    const p = { name: diaryName(e), sector: sector || '', start: e.start || '', end: e.end || e.start || '', venue: e.venue || '', url: e.list || e.site || '' };
+    // the link the app reads: the exhibitor list of a dated show, else its website; never a listings or social page (Facebook, say),
+    // and never last year's list for a show not dated yet
+    const ok = (u) => !!u && !isDirectory(u);
+    const url = e.start && ok(e.list) ? e.list : ok(e.site) ? e.site : '';
+    const p = { name: diaryName(e), sector: sector || '', start: e.start || '', end: e.end || e.start || '', venue: e.venue || '', url };
     if (!e.start && /^\d{4}/.test(String(e.month || ''))) p.year = String(e.month).slice(0, 4);   // its website may still show this year's show
     return p;
   }
@@ -843,7 +853,7 @@
     FILTERS, filterRows, filterCount, summary, isUnread, shares, listedIn, listedCount, reachSummary, makeTopic, showFromHash,
     SECTOR_PRESETS, cleanSector, matchSector, sectorsFrom, searchLinks,
     validUrl, linkBoxKind, whereParts, parseShared, isDirectory, finderPages, tileFor, mapsUrl, searchText, validApiUrl, slug,
-    diaryFile, DIARY_TYPES, DIARY_DATES, diaryPhase, monthLabel, diaryMatch, diaryView, diaryPrefill, diaryName, diaryChecked, fitsYear,
+    diaryFile, DIARY_TYPES, diaryTypes, DIARY_DATES, diaryPhase, monthLabel, diaryMatch, diaryView, diaryPrefill, diaryName, diaryChecked, fitsYear, plainText,
     CSV_COLUMNS, csvCell, toCsv, mergeBySite, usage, sectorOptions, resolveSector, leadGroups, barLabel,
     evidenceRows, speedLines, recheckSummary, explainText, scriptOutdated, chromeIntent, waitTime, waitingLine,
   };
