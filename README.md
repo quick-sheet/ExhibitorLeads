@@ -57,6 +57,28 @@ This is a guide, not legal advice.
 2. Open the **Actions** tab and wait for **Deploy to Pages** to show a green tick (usually under a minute). Opening `sw.js` on the live address should show the new `exhibitorleads-vN` name.
 3. Fully close the app and reopen it. If it still looks the same, close and reopen once more.
 
+**Release 21 (app only; the Apps Script stays at release 17).** A Show diary for baby sectors: the UK shows to research, each one tap from being added.
+
+1. Nothing to do in Apps Script. Settings keeps saying **Apps Script release: 17, up to date**.
+2. Upload `index.html`, `core.js`, `sw.js`, the new `diary-baby.json` and `README.md` together, and commit. Wait for the green tick in **Actions**, then fully close and reopen the app. (`sw.js` keeps `diary-baby.json` for offline, so the update waits until that file is there too.)
+
+What release 21 changes:
+
+- **A calendar icon beside the plus** on Baby and toddler (and any sector named for babies, nurseries, maternity or kids) opens the **Show diary**: 33 UK trade shows, baby shows, local fairs and early-years events from now through 2027, checked on 20 October 2026. It shows even before the sector has any exhibitions.
+- **The Show diary screen**, built like the rest of the app:
+  - the header counts the shows still to come (“Show diary · 33 shows”); shows that have ended drop off by themselves, and one on today says **On now**;
+  - **chips** for All, Trade, Gift trade, Baby shows, Local fairs and Early years, with counts;
+  - shows **by month**, each with what kind of show it is, its dates, venue and who exhibits there;
+  - a **date mark** on every show: ✓ **Organiser dates** (from the organiser's own site or announcement), ! **Listing, check** (from a listing site only), or ◌ **Not out yet** (it runs every year, but the next dates are not announced). Tap the mark to open where the dates came from;
+  - icons on each show: the **map pin** (Google Maps), the **globe** (its website), the **clipboard** (its exhibitor list, where one is published) and the **plus**.
+- **The plus adds the show.** It opens Add exhibition already filled in: the name, the sector, the dates and venue (marked “from the diary”), and the exhibitor list link, or the show's website, where the app looks for the list as usual. Once added, the plus turns into a green **tick** that opens your exhibition. One exhibition ticks one show only.
+- **Shows not dated yet** (Harrogate Nursery Fair 2027, say) keep their year in the name. If the show's website is still showing this year's edition, its dates and exhibitor list are left out, and the form says so, so the 2027 show is never saved with 2026's dates.
+- **Swipe right or the back arrow** goes back to the sector. The diary also opens offline.
+- **More Listings for baby sectors** under Find exhibitions: eventslist (local baby fairs), Eventbrite, Nursery Today (nursery trade news) and Mumbler (local parent guides). They open in Chrome; the app does not read them, and a Nursery Today or Mumbler page shared or pasted in is treated like a listing: open the show's own site from it.
+- Baby sectors are now spotted by whole words, so “Mumbai textiles”, “Kidderminster carpets” or a plant nursery no longer get the baby listings.
+- Add exhibition's two date boxes now always fit side by side.
+- To refresh the diary later, ask for a new `diary-baby.json` and upload it on its own; nothing else changes.
+
 **Release 20 (Apps Script release 17).** Find exhibitions gets listings pages you browse yourself, sharing a show's own website fills in its dates, venue and exhibitor list, and a map pin opens the venue in Google Maps.
 
 1. Paste the new `Code.gs` over the old one and save. You do not need to run `authorise` or `setup` again.
@@ -274,6 +296,7 @@ Each release bumps two markers together: `core.js?v=N` in `index.html` and the c
 | `manifest.webmanifest` | Install to the home screen and receive shared pages |
 | `icon.svg`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon.png` | Icons |
 | `google.png`, `microsoft.png` | The Google and Microsoft tiles, cut from the images you supplied |
+| `diary-baby.json` | The Show diary for baby sectors: the researched shows, their dates, links and sources |
 | `apps-script/Code.gs`, `apps-script/appsscript.json` | The thin server: Sheet storage, Companies House, mail-record check, directory reading, notification emails |
 | `.github/workflows/pages.yml` | Publishes the site with GitHub Pages (set up once in the repo, not in this folder) |
 
@@ -288,7 +311,7 @@ Each release bumps two markers together: `core.js?v=N` in `index.html` and the c
 - To save time, one website's home page, mail records and company search go out together, and its terms and privacy pages are read two at a time. This uses a few more web requests but waits for them together. Settings has a **Speed** section with the average time per business, where it goes, and the slowest sites.
 - Sole traders are not on the Companies House register, so they cannot be confirmed and stay as consent needed.
 - Eight colour themes are in Settings: four dark (Harbour, Graphite, Forest, Aubergine) and four light (Porcelain, Stone, Sage, Sky). Harbour is the default. Every theme keeps its text at a readable contrast.
-- The **plus**, **pencil** and **download** icons beside a sector's name add an exhibition, rename the sector (changing all its exhibitions at once) and download its CSV. Choose a name that already exists to join two sectors together.
+- The **plus**, **pencil** and **download** icons beside a sector's name add an exhibition, rename the sector (changing all its exhibitions at once) and download its CSV. Choose a name that already exists to join two sectors together. On a baby sector, the **calendar** between them opens the Show diary.
 - **Your leads** on the home, sector and exhibition screens lists one fact per line, including how many appear to use Google Workspace. Each line also gives its share of the exhibitors checked so far.
 - Three colours mean the same thing everywhere (the “Can you email them?” bar, the lines under it, the filter pills and the dots beside each exhibitor): green is *can email* (a confirmed limited company), amber is *to check* and rose is *consent needed*. An outlined square is not checked yet. The colours are tuned for each theme and kept apart in lightness as well as hue, so they still tell apart for colour-blind viewers.
 - On an exhibition screen, the **download** icon beside the name saves the whole list as a CSV. To save only what a filter or search is showing, use the menu (the three dots).

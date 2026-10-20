@@ -230,7 +230,7 @@ textarea.field { height: auto; min-height: 96px; padding: 10px 12px; resize: ver
 .sheet .mode-note { color: var(--ink-2); }
 .field-row { display: flex; gap: 8px; margin-top: 10px; }
 .field-row .field { flex: 1; }
-.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 .search-form { margin: 18px 0 0; }
 .search-form .field-row { margin-top: 0; }
 
@@ -281,6 +281,29 @@ textarea.field { height: auto; min-height: 96px; padding: 10px 12px; resize: ver
 .src-sub { display: block; font-size: 12.5px; color: var(--ink-3); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .src-x { width: 44px; height: 44px; flex: none; display: grid; place-items: center; color: var(--ink-3); margin-right: 4px; }
 .src-x svg { width: 18px; height: 18px; }
+/* Show diary: researched shows for a sector, each with its date mark, its links and a plus to add it */
+.dy-key { display: flex; flex-wrap: wrap; gap: 0 14px; margin: 10px 0 0; }
+.dy-st { --stc: var(--ink-3); display: inline-flex; align-items: center; gap: 5px; min-height: 32px; min-width: 0; font-size: 13px; font-weight: 500; color: var(--stc); text-decoration: none; }
+@supports (color: color-mix(in srgb, red, blue)) {
+  .dy-st { color: color-mix(in srgb, var(--stc) 62%, var(--ink)); }   /* the words a shade deeper than the mark, so they read on light themes */
+}
+.dy-st svg { width: 15px; height: 15px; flex: none; color: var(--stc); }
+.dy-st.organiser { --stc: var(--st-ok); }
+.dy-st.listing { --stc: var(--st-check); }
+a.dy-st:active { opacity: .45; }
+.dy { padding: 14px 0 4px; border-bottom: 1px solid var(--line); }
+.dy p { margin: 0; }
+.dy-type { font-size: 12.5px; font-weight: 500; color: var(--ink-3); letter-spacing: .01em; }
+.dy .dy-name { margin-top: 1px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.dy-name span { font-weight: 400; color: var(--ink-2); }
+.dy .dy-when { margin-top: 3px; font-size: 14px; }
+.dy-when b { color: var(--sun); font-weight: 600; }
+.dy-venue { font-size: 14px; color: var(--ink-2); }
+.dy .dy-who { margin-top: 6px; font-size: 13.5px; color: var(--ink-2); max-width: 32em; }
+.dy .dy-note { margin-top: 6px; padding-left: 10px; border-left: 2px solid var(--line-2); font-size: 13px; color: var(--ink-3); }
+.dy-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
+.dy-ico { display: flex; flex: none; margin-right: -10px; }
+.ico-btn.ok { color: var(--st-ok); }
 /* reading a show's own website in Add exhibition */
 .look { margin: 10px 0 0; padding: 10px 12px; border-radius: 12px; font-size: 13.5px; line-height: 1.4; color: var(--ink-2); background: var(--raise-2); }
 .look.ok { color: var(--ink); background: color-mix(in srgb, var(--st-ok) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-ok) 40%, transparent); }
@@ -503,7 +526,7 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
 <div class="toast" id="toast" role="status" popover="manual"></div>
 
-<script src="core.js?v=20"></script>
+<script src="core.js?v=21"></script>
 <script>
 (() => {
 'use strict';
@@ -542,6 +565,7 @@ const S = {
   showsAt: get('showsAt', 0),
   rows: {},                         // showId -> rows
   route: { v: 'home' },
+  diaries: {}, diaryType: 'all',   // the show diaries read this session, and the type chosen on the diary screen
   filter: 'all', q: '', limit: 200,
   set: Object.assign({ theme: 'harbour', lastSector: '' }, get('settings', {})),
   status: get('status', null),
@@ -601,6 +625,10 @@ const ICON = {
   browse: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
   globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.8 3.9 5.8 3.9 9s-1.3 6.2-3.9 9c-2.6-2.8-3.9-5.8-3.9-9s1.3-6.2 3.9-9z"/></svg>',
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.6M8.2 13.2l7.6 4.6"/></svg>',
+  calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8 14h2M14 14h2M8 17h2"/></svg>',
+  exhibitors: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4.5" width="14" height="16.5" rx="2.5"/><path d="M9.5 3h5v3h-5zM8.5 11h7M8.5 14.5h7M8.5 18h4"/></svg>',
+  warn: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6.3" stroke-width="1.5"/><path d="M8 4.7v4M8 11.2v.1" stroke-width="1.8"/></svg>',
+  later: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="6.3" stroke-width="1.5" stroke-dasharray="2.3 2.1"/></svg>',
   stack: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 3 9l9 5 9-5-9-5Z"/><path d="M3 14l9 5 9-5"/></svg>',
 };
 
@@ -675,7 +703,7 @@ async function refreshShows() {
     S.showsAt = Date.now();
     put('shows', S.shows); put('showsAt', S.showsAt);
     setOffline(null);
-    if (changed && (S.route.v === 'home' || S.route.v === 'sector')) renderMain();
+    if (changed && (S.route.v === 'home' || S.route.v === 'sector' || S.route.v === 'diary')) renderMain();
     return true;
   } catch (e) { setOffline(e); if (!e.net) toast(e.message); return false; }
 }
@@ -825,9 +853,10 @@ function go(route, replace) {
 function parentOf(r) {
   if (!r || r.v === 'home') return null;
   if (r.v === 'show') { const s = showById(r.showId); return s ? { v: 'sector', sector: s.sector } : { v: 'home' }; }
+  if (r.v === 'diary') return { v: 'sector', sector: r.sector };
   return { v: 'home' };
 }
-const sameRoute = (a, b) => !!a && !!b && a.v === b.v && (a.v === 'home' || (a.v === 'sector' ? a.sector === b.sector : a.showId === b.showId));
+const sameRoute = (a, b) => !!a && !!b && a.v === b.v && (a.v === 'home' || (a.v === 'sector' || a.v === 'diary' ? a.sector === b.sector : a.showId === b.showId));
 /** Up one level, the same whichever way you arrived: back when you came from there, otherwise straight to it. */
 function goUp() {
   const up = parentOf(S.route);
@@ -855,7 +884,10 @@ async function enter() {
     if (S.route.showId !== id) return;
     updateShow();
     ensureChecking();
-  } else if (S.api) { await refreshShows(); ensureChecking(); }
+  } else {
+    if (r.v === 'diary') loadDiary(r.sector);
+    if (S.api) { await refreshShows(); ensureChecking(); }
+  }
 }
 
 /* ---------- Rendering: shell ---------- */
@@ -874,6 +906,7 @@ function renderHeader() {
   if (r.v === 'home') w.label = S.api ? (S.shows.length ? C.plural(S.shows.length, 'exhibition') : 'Ready') : 'Not connected';
   // the sector's exhibitions; an exhibition's own exhibitors, checked or not
   else if (r.v === 'sector') w = C.whereParts('Sector', S.shows.filter((x) => x.sector === r.sector).length, 'exhibition');
+  else if (r.v === 'diary') { const d = diaryData(r.sector); w = C.whereParts('Show diary', d ? C.diaryView(d, null, today(), []).total : 0, 'show'); }
   else { const s = showById(r.showId), rows = S.rows[r.showId]; if (s) w = C.whereParts(s.sector, rows && rows.length ? rows.length : (s.counts || {}).total, 'exhibitor'); }
   const html = w.label ? `<span class="wl">${esc(w.label)}</span>${w.count ? `<span class="wn num"><span class="dot">·</span>${esc(w.count)}</span>` : ''}` : '';
   const el = $('#where');
@@ -899,7 +932,7 @@ function renderNotices() {
 
 function renderMain() {
   const r = S.route;
-  $('#main').innerHTML = r.v === 'sector' ? sectorHtml(r.sector) : r.v === 'show' ? showShellHtml() : homeHtml();
+  $('#main').innerHTML = r.v === 'sector' ? sectorHtml(r.sector) : r.v === 'diary' ? diaryHtml(r.sector) : r.v === 'show' ? showShellHtml() : homeHtml();
   renderHeader();
   if (r.v === 'show') updateShow();
 }
@@ -966,6 +999,7 @@ function sectorHtml(sector) {
       <div class="title-row"><h1 class="sat-name">${esc(sector)}</h1>
         <div class="row-icons">
           <button class="ico-btn main" type="button" data-act="add-show" aria-label="Add exhibition" title="Add exhibition">${ICON.plus}</button>
+          ${C.diaryFile(sector) ? `<button class="ico-btn" type="button" data-act="diary" aria-label="Show diary" title="Show diary">${ICON.calendar}</button>` : ''}
           ${shows.length ? `<button class="ico-btn" type="button" data-act="rename-sector" aria-label="Rename sector" title="Rename sector">${ICON.pencil}</button>` : ''}
           ${t.total ? `<button class="ico-btn" type="button" data-act="sector-csv" aria-label="Download CSV" title="Download CSV">${ICON.down}</button>` : ''}
         </div></div>
@@ -999,8 +1033,85 @@ function finderHtml(sector, links) {
       <div class="src-group">${pages.map(row).join('')}</div>
       <h3 class="finder-sub">Google searches</h3>
       <div class="src-group">${links.map(g).join('')}</div>
-      <p class="section-note" style="margin-top:10px">The app never reads these listings sites: their terms ask that only people browse them. It reads a show’s own website once you share it.</p>
+      <p class="section-note" style="margin-top:10px">The app never reads these pages: listings sites ask that only people browse them. It reads a show’s own website once you share it.</p>
     </section>`;
+}
+
+/* ---------- Show diary ---------- */
+// A file in the app (diary-baby.json) of shows researched for a sector. Read once a session, kept on the phone for offline.
+const DIARY_MARK = { organiser: ICON.tick, listing: ICON.warn, tbc: ICON.later };
+/** The diary for a sector: this session's copy, or the one kept on the phone. */
+function diaryData(sector) {
+  const file = C.diaryFile(sector);
+  if (!file) return null;
+  if (!S.diaries[file]) { const kept = get('diary.' + file, null); if (kept && Array.isArray(kept.shows)) S.diaries[file] = kept; }
+  return S.diaries[file] || null;
+}
+function diaryEntry(i) { const d = diaryData(S.route.sector); return d ? d.shows[+i] || null : null; }
+/** Reads the diary file (the newest one the app has), shows it if it changed, and keeps it for offline. */
+async function loadDiary(sector) {
+  const file = C.diaryFile(sector);
+  if (!file) return;
+  const was = JSON.stringify(diaryData(sector));
+  const here = () => S.route.v === 'diary' && C.diaryFile(S.route.sector) === file;
+  try {
+    const r = await fetch(file, { cache: 'no-cache' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    if (!j || !Array.isArray(j.shows)) throw new Error('not a diary');
+    S.diaries[file] = j; put('diary.' + file, j); S.diaryFail = false;
+    if (was !== JSON.stringify(j) && here()) renderMain();
+  } catch (e) {
+    if (!S.diaries[file]) { S.diaryFail = true; if (here()) renderMain(); }
+  }
+}
+
+/**
+ * The Show diary for a sector: the type chips, a key to the date marks, then the shows still to come by month. Each has its map pin,
+ * website and exhibitor list, and a plus that starts Add exhibition already filled in, or a tick once it is one of your exhibitions.
+ */
+function diaryHtml(sector) {
+  const d = diaryData(sector);
+  const top = (about, body) => `<section class="hero"><div class="title-row"><div><h1 class="sat-name">Show diary</h1>
+      <p class="when">${esc(about)}</p></div></div>${body}</section>`;
+  if (!d) {
+    return top(`Shows to research for ${sector}`, S.diaryFail ? '<p class="empty-body">The show diary could not load. Check your connection, then go back and open it again.</p>'
+      : '<p class="empty-body"><span class="spinner" aria-hidden="true"></span>Opening the show diary…</p>');
+  }
+  let v = C.diaryView(d, { type: S.diaryType }, today(), S.shows);
+  if (S.diaryType !== 'all' && !v.counts[S.diaryType]) { S.diaryType = 'all'; v = C.diaryView(d, { type: 'all' }, today(), S.shows); }
+  const chip = (id, label) => `<button class="chip" type="button" data-act="diary-type" data-type="${id}" aria-pressed="${S.diaryType === id}">${esc(label)} <span class="n num">${v.counts[id]}</span></button>`;
+  const chips = chip('all', 'All') + C.DIARY_TYPES.filter((t) => v.counts[t.id]).map((t) => chip(t.id, t.label)).join('');
+  const key = Object.keys(C.DIARY_DATES).map((k) => `<span class="dy-st ${k}" title="${esc(C.DIARY_DATES[k].help)}">${DIARY_MARK[k]}${esc(C.DIARY_DATES[k].label)}</span>`).join('');
+  const list = v.groups.length ? v.groups.map((g) => `<h2 class="day">${esc(g.label)}</h2>${g.items.map(diaryRow).join('')}`).join('')
+    : '<p class="empty-list">No shows still to come in this diary. It is updated with each release.</p>';
+  return top(d.about || `Shows to research for ${sector}`, `<p class="dy-key" aria-label="What the date marks mean">${key}</p>`)
+    + `<div class="chips filters" role="group" aria-label="Type of show">${chips}</div>${list}
+    <p class="foot">${esc(C.diaryChecked(d.checked))}. Dates change, so confirm on the show’s own site before booking. Tap a date mark to see where it came from.</p>`;
+}
+
+function diaryRow(e) {
+  const type = C.DIARY_TYPES.find((t) => t.id === e.type);
+  const mark = C.DIARY_DATES[e.dates] ? e.dates : 'tbc';
+  const name = C.diaryName(e);
+  const icons = [];
+  if (!e.series && e.venue) icons.push(`<a class="ico-btn" href="${esc(C.mapsUrl(e.venue))}" target="_blank" rel="noopener" aria-label="Open ${esc(e.venue)} in Google Maps" title="Open the venue in Google Maps">${ICON.pin}</a>`);
+  if (e.site) icons.push(`<a class="ico-btn" href="${esc(e.site)}" target="_blank" rel="noopener" data-chrome="1" aria-label="${esc(name)} website" title="Website">${ICON.globe}</a>`);
+  if (e.list) icons.push(`<a class="ico-btn" href="${esc(e.list)}" target="_blank" rel="noopener" data-chrome="1" aria-label="${esc(name)} ${esc(e.listLabel || 'exhibitor list')}" title="${esc(e.listLabel || 'Exhibitor list')}">${ICON.exhibitors}</a>`);
+  if (e.added) icons.push(`<button class="ico-btn ok" type="button" data-show="${esc(e.added.id)}" aria-label="In your exhibitions: open ${esc(e.added.name)}" title="In your exhibitions">${ICON.tick}</button>`);
+  else if (!e.series) icons.push(`<button class="ico-btn main" type="button" data-act="diary-add" data-i="${e.i}" aria-label="Add ${esc(name)} to your exhibitions" title="Add to your exhibitions">${ICON.plus}</button>`);
+  const label = `${DIARY_MARK[mark]}${esc(C.DIARY_DATES[mark].label)}`;
+  const st = e.source ? `<a class="dy-st ${mark}" href="${esc(e.source)}" target="_blank" rel="noopener" data-chrome="1" title="${esc(C.DIARY_DATES[mark].help)}. Source: ${esc(e.sourceName || '')}">${label}</a>`
+    : `<span class="dy-st ${mark}" title="${esc(C.DIARY_DATES[mark].help)}">${label}</span>`;
+  return `<div class="dy">
+      ${type ? `<p class="dy-type">${esc(type.one)}</p>` : ''}
+      <p class="dy-name">${esc(e.name)}${e.edition ? ` <span>· ${esc(e.edition)}</span>` : ''}</p>
+      <p class="dy-when num">${e.phase === 'live' ? '<b>On now</b> · ' : ''}${esc(e.start ? C.fmtDates(e.start, e.end) : e.when || 'Dates not out yet')}</p>
+      ${e.venue ? `<p class="dy-venue">${esc(e.venue)}</p>` : ''}
+      ${e.who ? `<p class="dy-who">${esc(e.who)}</p>` : ''}
+      ${e.note ? `<p class="dy-note">${esc(e.note)}</p>` : ''}
+      <div class="dy-foot">${st}<span class="dy-ico">${icons.join('')}</span></div>
+    </div>`;
 }
 
 /** Saves a filtered listings page under a sector, from Find exhibitions or from a listings page shared to the app. */
@@ -1328,16 +1439,16 @@ function showForm(s, pre) {
   const sectors = C.sectorOptions(S.shows).map((o) => o.name);
   const v = s || {};
   const p = pre || {};
-  return `<form id="showForm" data-id="${esc(v.id || '')}" novalidate>
+  return `<form id="showForm" data-id="${esc(v.id || '')}"${p.year ? ` data-year="${esc(p.year)}"` : ''} novalidate>
       <label class="lbl" for="sf-name" style="margin-top:6px">Exhibition name</label>
       <input class="field" id="sf-name" name="name" value="${esc(v.name || p.name || '')}" maxlength="120" autocomplete="off" placeholder="For example The Whisky Show">
       <label class="lbl" for="sf-sector">Sector</label>
       <input class="field" id="sf-sector" name="sector" list="sectorList" value="${esc(v.sector || p.sector || (S.route.v === 'sector' ? S.route.sector : S.set.lastSector) || '')}" maxlength="40" autocomplete="off" placeholder="For example Whisky and spirits">
       <datalist id="sectorList">${sectors.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>
-      <div class="two"><div><label class="lbl" for="sf-start">Starts<span class="from" id="sf-dates-from" hidden>from its site</span></label><input class="field" id="sf-start" name="start" type="date" value="${esc(v.start || '')}"></div>
-      <div><label class="lbl" for="sf-end">Ends</label><input class="field" id="sf-end" name="end" type="date" value="${esc(v.end || '')}"></div></div>
+      <div class="two"><div><label class="lbl" for="sf-start">Starts<span class="from" id="sf-dates-from" hidden>from its site</span></label><input class="field" id="sf-start" name="start" type="date" value="${esc(v.start || p.start || '')}"></div>
+      <div><label class="lbl" for="sf-end">Ends</label><input class="field" id="sf-end" name="end" type="date" value="${esc(v.end || p.end || '')}"></div></div>
       <label class="lbl" for="sf-venue">Venue<span class="from" id="sf-venue-from" hidden>from its site</span></label>
-      <input class="field" id="sf-venue" name="venue" value="${esc(v.venue || '')}" maxlength="120" autocomplete="off" placeholder="For example Olympia London">
+      <input class="field" id="sf-venue" name="venue" value="${esc(v.venue || p.venue || '')}" maxlength="120" autocomplete="off" placeholder="For example Olympia London">
       ${v.id ? '' : `<div class="lbl-row"><span class="lbl" id="sf-how">Exhibitors from</span>
         <div class="mode" role="radiogroup" aria-labelledby="sf-how">
           <button type="button" role="radio" aria-checked="true" data-act="sf-mode" data-mode="link">Link</button>
@@ -1385,6 +1496,8 @@ function openAddShow(pre) {
     return;
   }
   openSheet(head('Add exhibition') + showForm(null, pre));
+  // filled in from the Show diary: say so beside the dates and the venue, as a show's own website does
+  if (pre && pre.diary) [['#sf-dates-from', pre.start], ['#sf-venue-from', pre.venue]].forEach(([id, has]) => { const m = $(id); if (m && has) { m.textContent = 'from the diary'; m.hidden = false; } });
   if (!linkBoxToList() && pre && pre.url) lookUp(pre.url);
 }
 
@@ -1399,6 +1512,12 @@ async function lookUp(url) {
   const seq = ++lookSeq;
   const still = () => seq === lookSeq && document.body.contains(box);
   box.hidden = false; box.className = 'look';
+  if (C.isDirectory(url)) {
+    const host = (/^https?:\/\/(?:www\.)?([^\/?#]+)/i.exec(C.validUrl(url)) || [])[1] || 'that site';
+    box.className = 'look warn';
+    box.innerHTML = `That’s a page on ${esc(host)}, which the app does not read. From it, open the show’s own website and share that.<br><button class="link-btn" type="button" data-act="save-listing" data-url="${esc(url)}">Keep it as a search page</button>`;
+    return;
+  }
   box.innerHTML = '<span class="spinner" aria-hidden="true"></span>Looking at the show’s website…';
   let j;
   try { j = await call('lookShow', { url }); } catch (e) {
@@ -1415,6 +1534,13 @@ async function lookUp(url) {
   }
   if (j.blocked || j.error) { box.className = 'look warn'; box.textContent = (j.note || j.error) + '. Add the exhibitor list link yourself, or choose List and paste it.'; return; }
   set('#sf-name', j.name);
+  // a diary show not dated yet: the website may still be showing this year's edition, whose dates and list are not this one's
+  const year = f.dataset.year;
+  if (year && j.start && !C.fitsYear(j.start, year)) {
+    box.className = 'look';
+    box.innerHTML = `Its website still shows ${esc(C.fmtDates(j.start, j.end))}.<small>Those are not the ${esc(year)} dates, so they are left empty, and so is its current exhibitor list. Add the show now and fill them in when they are out.</small>`;
+    return;
+  }
   if (set('#sf-start', j.start, '#sf-dates-from')) set('#sf-end', j.end);
   set('#sf-venue', j.venue, '#sf-venue-from');
   const box2 = $('#sf-urls');
@@ -1799,7 +1925,7 @@ async function submitShow(form) {
       const show = showById(j.show.id) || j.show;
       if (!id) {
         E.userPaused = false;
-        go({ v: 'show', showId: show.id, sector: show.sector });
+        go({ v: 'show', showId: show.id, sector: show.sector }, S.route.v === 'diary');   // from the diary: the show takes its place, so up is one step back
         if (pasted) toast(`${C.plural(pasted.added, 'exhibitor')} added${pasted.skipped ? `, ${pasted.skipped} already there` : ''}`);
         else if (pasteErr) toast(`The exhibition was added, but not the list: ${pasteErr.message}. Tap Paste the list to try again`);
         else if (show.urls.length) { await sleep(50); loadList(show, null); } else toast('Added. Paste the list to get started');
@@ -1856,6 +1982,9 @@ async function act(name, t) {
     case 'install': if (S.installEvt) { S.installEvt.prompt(); S.installEvt = null; renderNotices(); } break;
     case 'add-show': openAddShow(S.shared ? S.shared : null); S.shared = null; break;
     case 'open-search': openFind(); break;
+    case 'diary': if (S.route.v === 'sector') go({ v: 'diary', sector: S.route.sector }); break;
+    case 'diary-type': S.diaryType = d.type || 'all'; renderMain(); break;
+    case 'diary-add': { const e = diaryEntry(d.i); if (e) openAddShow(Object.assign(C.diaryPrefill(e, S.route.sector), { diary: true })); break; }
     case 'rename-sector': if (S.route.v === 'sector') openRenameSector(S.route.sector); break;
     case 'sector-csv': withBusy(t, () => downloadSector(S.route.sector)); break;
     case 'show-menu': if (s) openShowMenu(s); break;
@@ -2029,7 +2158,7 @@ document.addEventListener('click', (e) => {
   if (d.theme) { setTheme(d.theme); return; }
   if (d.dismiss) { const x = get('dismissed', {}); x[d.dismiss] = 1; put('dismissed', x); renderNotices(); return; }
   if (d.sector) { closeFind(); go({ v: 'sector', sector: C.matchSector(d.sector, S.shows) }); return; }
-  if (d.show) { const s = showById(d.show); if (s) go({ v: 'show', showId: s.id, sector: s.sector }); return; }
+  if (d.show) { const s = showById(d.show); if (s) go({ v: 'show', showId: s.id, sector: s.sector }, S.route.v === 'diary'); return; }
   if (d.row) { openRow(d.row); return; }
   if (d.filter) { S.filter = d.filter; S.limit = 200; updateShow(); return; }
   if (d.act) act(d.act, t);

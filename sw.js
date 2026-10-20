@@ -1,6 +1,6 @@
 /* Exhibitor Leads service worker: works offline, picks up updates on the next open. */
-const CACHE = 'exhibitorleads-v20';   // bump on every release, together with core.js?v= in index.html
-const SHELL = ['./', 'index.html', 'core.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'google.png', 'microsoft.png'];
+const CACHE = 'exhibitorleads-v21';   // bump on every release, together with core.js?v= in index.html
+const SHELL = ['./', 'index.html', 'core.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'google.png', 'microsoft.png', 'diary-baby.json'];
 
 self.addEventListener('install', (e) => {
   // 'reload' skips the browser's own copy, so the offline set is always the release just published

@@ -323,16 +323,25 @@
 
   /* ---------- Finding exhibitions: listings you browse yourself ----------
    * These sites say in their terms or robots.txt that automated tools may not read them, so the app only opens them for you
-   * (in Chrome, already filtered) and never reads them. The same list as DIRECTORY_HOSTS in the Apps Script. */
-  const DIRECTORY_HOSTS = /(^|\.)(10times\.com|exhibitions\.co\.uk|cantonfair\.net|eventseye\.com|neventum\.com|tradefairdates\.com|expocart\.com|luminik\.io|eventslist\.co\.uk|expolume\.com|ntradeshows\.com|tradeshowsguide\.com|google\.[a-z.]+|bing\.com|duckduckgo\.com|eventbrite\.[a-z.]+|allevents\.in|facebook\.com|instagram\.com)$/;
+   * (in Chrome, already filtered) and never reads them. The same list as DIRECTORY_HOSTS in the Apps Script, plus Nursery Today and
+   * Mumbler (news and parent guides, not a show's own site), which the app checks itself before asking Apps Script to read a page. */
+  const DIRECTORY_HOSTS = /(^|\.)(10times\.com|exhibitions\.co\.uk|cantonfair\.net|eventseye\.com|neventum\.com|tradefairdates\.com|expocart\.com|luminik\.io|eventslist\.co\.uk|expolume\.com|ntradeshows\.com|tradeshowsguide\.com|google\.[a-z.]+|bing\.com|duckduckgo\.com|eventbrite\.[a-z.]+|allevents\.in|facebook\.com|instagram\.com|nurserytoday\.co\.uk|mumbler\.co\.uk)$/;
   const hostOfUrl = (u) => { const m = /^https?:\/\/([^\/?#:@]+)/i.exec(String(u || '').trim()); return m ? m[1].toLowerCase() : ''; };
   /** A page from a listings or search site: browsed by you, never read by the app. */
   function isDirectory(url) { const h = hostOfUrl(url); return !!h && DIRECTORY_HOSTS.test(h); }
   const TENX = '10times', EXCO = 'exhibitions.co.uk';
   const exCat = (slug, sub) => ({ name: EXCO, sub, url: `https://www.exhibitions.co.uk/event-category/${slug}/`, tile: 'ex' });
+  // Baby sectors: whole words only ("Mumbai", "Kidderminster" and "Parenteral" are not), and a plant nursery is not a baby one.
+  const BABY_WORDS = /^(?!.*\b(plants?|garden\w*|horticult\w*|trees?|shrubs?|seeds?|landscap\w*)\b)(?=.*\b(bab(y|ies)|toddlers?|nurser(y|ies)|maternity|pregnan\w*|parent(s|ing|hood)?|kids?|kidswear|child(ren)?([’']?s)?|childrenswear|infants?|mums?|mothers?|newborns?)\b)/i;
   // Listings pages for a sector, chosen by words in its name. 10times category addresses used here were checked to exist.
   const FINDER = [
-    [/\b(baby|babies|toddler|nursery|maternity|pregnan|parent|kid|child|infant|mum)/i, [{ name: TENX, sub: 'UK · Baby, Kids & Maternity', url: 'https://10times.com/unitedkingdom/baby-kids/tradeshows', tile: '10x' }]],
+    [BABY_WORDS, [
+      { name: TENX, sub: 'UK · Baby, Kids & Maternity', url: 'https://10times.com/unitedkingdom/baby-kids/tradeshows', tile: '10x' },
+      { name: 'eventslist', sub: 'Local baby fairs · search “baby fayre”', url: 'https://eventslist.co.uk', tile: 'el' },
+      { name: 'Eventbrite', sub: 'Search “baby fair” or “baby show”', url: 'https://www.eventbrite.co.uk', tile: 'eb' },
+      { name: 'Nursery Today', sub: 'Nursery trade news and show dates', url: 'https://nurserytoday.co.uk', tile: 'NT' },
+      { name: 'Mumbler', sub: 'Local parent guides list baby fairs', url: 'https://www.mumbler.co.uk', tile: 'Mu' },
+    ]],
     [/\b(craft|arts?\b|quilt|knit|sew|stitch|yarn|wool|hobb|maker|handmade|paint|gift)/i, [{ name: TENX, sub: 'UK · Arts & Crafts', url: 'https://10times.com/unitedkingdom/arts-crafts/tradeshows', tile: '10x' }, exCat('home-lifestyle-leisure', 'Home, lifestyle & leisure')]],
     [/\b(food|drink|whisk|wine|gin\b|spirit|beer|cider|coffee|bak|hospitality)/i, [exCat('food-drink-hospitality', 'Food, drink & hospitality')]],
     [/\b(motor|caravan|camper|car\b|cars\b|vehicle|cycl|bike|boat)/i, [exCat('automotive-mobility', 'Automotive & mobility')]],
@@ -348,6 +357,10 @@
     if (/(^|\.)10times\.com$/.test(h)) return '10x';
     if (/exhibitions\.co\.uk$/.test(h)) return 'ex';
     if (/cantonfair\.net$/.test(h)) return 'CBS';
+    if (/(^|\.)eventslist\.co\.uk$/.test(h)) return 'el';
+    if (/(^|\.)eventbrite\./.test(h)) return 'eb';
+    if (/(^|\.)nurserytoday\.co\.uk$/.test(h)) return 'NT';
+    if (/(^|\.)mumbler\.co\.uk$/.test(h)) return 'Mu';
     if (/(^|\.)google\./.test(h)) return 'G';
     return (h.replace(/[^a-z0-9]/g, '').slice(0, 2) || '··').toUpperCase();
   }
@@ -366,6 +379,119 @@
   function mapsUrl(q) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(String(q || '').replace(/\s+/g, ' ').trim()); }
   /** What a Google search link searches for, from its address: "baby and toddler exhibition UK 2026 dates tickets". */
   function searchText(url) { const m = /[?&]q=([^&#]*)/.exec(String(url || '')); try { return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : ''; } catch (e) { return ''; } }
+
+  /* ---------- Show diary: researched shows for a sector, from a file in the app ---------- */
+
+  // Which diary a sector gets, chosen by words in its name like the listings above. One file per researched sector.
+  const DIARIES = [[BABY_WORDS, 'diary-baby.json']];
+  /** The diary file for a sector, or '' when there is none yet. */
+  function diaryFile(sector) { const d = DIARIES.find(([re]) => re.test(String(sector || ''))); return d ? d[1] : ''; }
+
+  const DIARY_TYPES = [
+    { id: 'trade', label: 'Trade', one: 'Trade show' },
+    { id: 'gift', label: 'Gift trade', one: 'Gift trade show' },
+    { id: 'consumer', label: 'Baby shows', one: 'Baby show' },
+    { id: 'local', label: 'Local fairs', one: 'Local fair' },
+    { id: 'pro', label: 'Early years', one: 'Early years & maternity' },
+  ];
+  const DIARY_DATES = {
+    organiser: { label: 'Organiser dates', help: 'Dates from the organiser’s own site or announcement' },
+    listing: { label: 'Listing, check', help: 'Dates from a listing site only, so check with the organiser' },
+    tbc: { label: 'Not out yet', help: 'Runs every year, but the next dates are not announced yet' },
+  };
+  const FULL_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  /** "past", "live" (on today) or "future". A show without dates goes by its month; "2027-99" means through 2027. */
+  function diaryPhase(e, today) {
+    const t = dayNum(today), a = dayNum(e && e.start);
+    if (isNaN(a)) {
+      const m = String((e && e.month) || '');
+      return /^\d{4}-\d{2}$/.test(m) && m < String(today).slice(0, 7) ? 'past' : 'future';
+    }
+    let b = dayNum(e.end);
+    if (isNaN(b) || b < a) b = a;
+    return t > b ? 'past' : t >= a ? 'live' : 'future';
+  }
+  /** The month a diary show is filed under ("2026-10"), and its heading ("October 2026", "Through 2027"). */
+  const diaryMonth = (e) => (e.start ? String(e.start).slice(0, 7) : String(e.month || '9999-99'));
+  function monthLabel(key) {
+    const [y, m] = String(key).split('-');
+    return m === '99' ? `Through ${y}` : FULL_MONTHS[+m - 1] ? `${FULL_MONTHS[+m - 1]} ${y}` : 'Dates not set';
+  }
+
+  // A web address reduced to compare: no scheme, no www, no query, no trailing slash, lower case.
+  const sameAddr = (u) => String(validUrl(u) || '').toLowerCase().replace(/^https?:\/\/(www\.)?/, '').replace(/[?#].*$/, '').replace(/\/+$/, '');
+  const plainName = (s) => String(s || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+  /** The name a diary show is given when it is added as an exhibition. One not dated yet keeps its year: "… Olympia London 2027". */
+  function diaryName(e) {
+    const n = String(e.full || [e.name, e.edition].filter(Boolean).join(' ')).trim();
+    const y = !e.start && !e.series && /^\d{4}/.test(String(e.month || '')) ? String(e.month).slice(0, 4) : '';
+    return y && n.indexOf(y) < 0 ? `${n} ${y}` : n;
+  }
+
+  /**
+   * The exhibition already added for a diary show, or null. It must be the same edition: dates within ten days of each other, or the
+   * same year for a show not dated yet. Then one of: its exhibitor list link; its website with the same start; or its name, which
+   * counts only when the exhibition has dates (an undated "The Baby Show Olympia London" could be any year's). Exhibitions in `taken`
+   * (ids) already tick an earlier row, so one exhibition never ticks two.
+   */
+  function diaryMatch(e, shows, taken) {
+    if (!e || e.series) return null;
+    const list = sameAddr(e.list), site = sameAddr(e.site), name = plainName(diaryName(e));
+    const a = dayNum(e.start), year = String(e.start || e.month || '').slice(0, 4);
+    for (const s of shows || []) {
+      if (taken && taken.has(s.id)) continue;
+      const b = dayNum(s.start);
+      if (!isNaN(a) && !isNaN(b) && Math.abs(a - b) > 10) continue;
+      if (isNaN(a) && !isNaN(b) && String(s.start).slice(0, 4) !== year) continue;
+      const urls = (s.urls || []).map(sameAddr);
+      if (list && urls.includes(list)) return s;
+      if (site && urls.includes(site) && !isNaN(a) && a === b) return s;
+      if (name && !isNaN(b) && plainName(s.name) === name) return s;
+    }
+    return null;
+  }
+
+  /**
+   * The diary as the screen shows it: shows not yet over, by month, for one type or all, each with { phase, added } (the exhibition
+   * it is already in, if any). Counts per type are of the shows still to come, so a chip never offers an empty list.
+   */
+  function diaryView(diary, opts, today, shows) {
+    const type = (opts && opts.type) || 'all';
+    const live = ((diary && diary.shows) || []).map((e, i) => Object.assign({}, e, { i, phase: diaryPhase(e, today) })).filter((e) => e.phase !== 'past');
+    const counts = { all: live.length };
+    DIARY_TYPES.forEach((t) => { counts[t.id] = live.filter((e) => e.type === t.id).length; });
+    const order = (e) => (e.start || (String(e.month || '9999-99') + '-32'));
+    const picked = live.filter((e) => type === 'all' || e.type === type)
+      .sort((x, y) => (order(x) < order(y) ? -1 : order(x) > order(y) ? 1 : String(x.name).localeCompare(y.name)))
+      .map((e) => e);
+    // matched in date order over all the shows still to come (not just the chosen type), so a tick never moves with the chips
+    const taken = new Set(), byI = {};
+    live.slice().sort((x, y) => (order(x) < order(y) ? -1 : order(x) > order(y) ? 1 : 0)).forEach((e) => {
+      const m = diaryMatch(e, shows, taken);
+      if (m) { taken.add(m.id); byI[e.i] = m; }
+    });
+    picked.forEach((e) => { e.added = byI[e.i] || null; });
+    const groups = [];
+    picked.forEach((e) => {
+      const key = diaryMonth(e);
+      let g = groups[groups.length - 1];
+      if (!g || g.key !== key) groups.push(g = { key, label: monthLabel(key), items: [] });
+      g.items.push(e);
+    });
+    return { groups, counts, total: live.length };
+  }
+
+  /** What Add exhibition starts with for a diary show: its name, sector, dates, venue, and the exhibitor list link or its website. */
+  function diaryPrefill(e, sector) {
+    const p = { name: diaryName(e), sector: sector || '', start: e.start || '', end: e.end || e.start || '', venue: e.venue || '', url: e.list || e.site || '' };
+    if (!e.start && /^\d{4}/.test(String(e.month || ''))) p.year = String(e.month).slice(0, 4);   // its website may still show this year's show
+    return p;
+  }
+  /** Dates read from a show's website belong to the edition being added only when they fall in its year (no year: any). */
+  function fitsYear(start, year) { return !year || String(start || '').slice(0, 4) === String(year); }
+  /** "Checked 20 Oct 2026" from the diary's date. */
+  function diaryChecked(iso) { const n = dayNum(iso); return isNaN(n) ? '' : `Checked ${fmtDates(iso)}`; }
 
   /* ---------- Sharing and links ---------- */
 
@@ -717,6 +843,7 @@
     FILTERS, filterRows, filterCount, summary, isUnread, shares, listedIn, listedCount, reachSummary, makeTopic, showFromHash,
     SECTOR_PRESETS, cleanSector, matchSector, sectorsFrom, searchLinks,
     validUrl, linkBoxKind, whereParts, parseShared, isDirectory, finderPages, tileFor, mapsUrl, searchText, validApiUrl, slug,
+    diaryFile, DIARY_TYPES, DIARY_DATES, diaryPhase, monthLabel, diaryMatch, diaryView, diaryPrefill, diaryName, diaryChecked, fitsYear,
     CSV_COLUMNS, csvCell, toCsv, mergeBySite, usage, sectorOptions, resolveSector, leadGroups, barLabel,
     evidenceRows, speedLines, recheckSummary, explainText, scriptOutdated, chromeIntent, waitTime, waitingLine,
   };
