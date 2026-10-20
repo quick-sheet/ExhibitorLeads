@@ -57,6 +57,19 @@ This is a guide, not legal advice.
 2. Open the **Actions** tab and wait for **Deploy to Pages** to show a green tick (usually under a minute). Opening `sw.js` on the live address should show the new `exhibitorleads-vN` name.
 3. Fully close the app and reopen it. If it still looks the same, close and reopen once more.
 
+**Release 19 (Apps Script release 16).** Swipe to go back, drag popups down to close them, a new spinner that always turns, and one message for a recheck of everything.
+
+1. Paste the new `Code.gs` over the old one and save. You do not need to run `authorise` or `setup` again.
+2. **Deploy, Manage deployments**, the pencil, **New version**, **Deploy**.
+3. Upload `index.html`, `core.js`, `sw.js` and `README.md`, and commit. Wait for the green tick in **Actions**, then fully close and reopen the app. Settings should say **Apps Script release: 16, up to date**.
+
+What release 19 changes:
+
+- **Swipe right to go up a level**: an exhibition goes to its sector, a sector to the home screen. Swipe anywhere, not just from the edge: the screen follows your finger with a back arrow at the left; let go past a third of the way, or flick, and it goes, otherwise it springs back. Up and down swipes only scroll, and anything that scrolls sideways keeps its own swipe. It always goes up one level, even if you reached the exhibition from search, and the back arrow at the top now does the same.
+- **Popups**: swipe right to close one (an exhibitor's details, Settings and the rest). Where the popup has its own Back, as **Why this result?** and **Enter company number** do, the swipe goes back one step instead. **Drag the handle bar (or the title) down** to close a popup.
+- **The comet spinner**: a ring whose tail fades behind its head, at the same sizes as before, everywhere a spinner shows. The old spinner stood still on phones that ask apps for less motion (Android's “Remove animations”, some battery savers), because the app switched every animation off. Spinners now keep turning, more slowly, when less motion is asked for; swipes then just happen without sliding.
+- **One message for a recheck of everything**: **Check them all again** in Settings (with or without consent needed) now sends one message when every exhibition in it is done, such as “Recheck finished: 519 checked again across 12 exhibitions. 340 can email (was 328), 80 to check (was 95), 99 need consent (was 96).” The look again after an update does the same, titled “Checks after the update finished”. An exhibition still gets its own message for its own recheck (from its menu), a list added to it, or a lead in it checked again, even while a recheck of everything is running.
+
 **Release 18 (app only; the Apps Script stays at release 15).** Add an exhibition from a pasted list in one go, and see counts under the app's name.
 
 1. Nothing to do in Apps Script. Settings keeps saying **Apps Script release: 15, up to date**.

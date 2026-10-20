@@ -14,7 +14,7 @@
 
 const VERSION = 1;
 // Which release of this code is live. The app shows it in Settings and warns when it is older than the app expects.
-const BUILD = 15;
+const BUILD = 16;
 const TZ = 'Europe/London';
 const UA = 'ExhibitorLeads/1 (personal prospecting tool; Google Apps Script)';
 const MAX_BODY = 600000;
@@ -160,11 +160,13 @@ function migrateOnce() {
     if (from >= PROTO) return 0;
     const rows = readTab('Exhibitors', EX_COLS);
     let n = 0;
+    const queued = {}, before = batchCounts(rows);
     const vals = rows.map((r) => {
       const again = (from < 2 && r.legal !== 'verified') || (from < 3 && r.legal === 'verified' && CLOSED.test(String(r.companyStatus || '')));
-      if ((r.state === 'done' || r.state === 'error') && again && r.legalSrc !== 'Confirmed by you') { n++; return ['todo', '']; }
+      if ((r.state === 'done' || r.state === 'error') && again && r.legalSrc !== 'Confirmed by you') { n++; queued[r.showId] = 1; return ['todo', '']; }
       return [r.state, r.note];
     });
+    if (n) startBatch('update', Object.keys(queued), n, before);   // one message when they are all done, not one per exhibition
     if (rows.length) db().getSheetByName('Exhibitors').getRange(2, EX_COLS.indexOf('state') + 1, rows.length, 2).setValues(vals);   // state and note sit side by side
     setProp('PROTO', String(PROTO));
     return n;
@@ -2151,7 +2153,7 @@ function cleanAppUrl(u) {
 /** Stores the notification code (the ntfy topic) the phone subscribed to, or switches notifications off. */
 function setNotify(p) {
   const props = PropertiesService.getScriptProperties();
-  if (p.off) { props.deleteProperty('NTFY_TOPIC'); props.deleteProperty('NTFY_URL'); props.deleteProperty('JOBS'); props.deleteProperty('NTFY_SIG'); props.deleteProperty('NTFY_LAST'); return notifyInfo(); }
+  if (p.off) { props.deleteProperty('NTFY_TOPIC'); props.deleteProperty('NTFY_URL'); props.deleteProperty('JOBS'); props.deleteProperty('NTFY_SIG'); props.deleteProperty('NTFY_LAST'); props.deleteProperty('BATCH'); return notifyInfo(); }
   const topic = String(p.topic || '').trim();
   if (!/^[A-Za-z0-9_-]{12,64}$/.test(topic)) throw new Error('That notification code does not look right');
   setProp('NTFY_TOPIC', topic);
@@ -2184,7 +2186,7 @@ function sendNtfy(title, message, link) {
 
 function testNotify() {
   if (!prop('NTFY_TOPIC')) throw new Error('Set up notifications first');
-  const r = sendNtfy('Exhibitor Leads is connected', 'You will get a message here every time a check finishes.', prop('NTFY_URL'));
+  const r = sendNtfy('Exhibitor Leads is connected', 'You will get a message here when an exhibition\u2019s checks finish, and one when a recheck of everything finishes.', prop('NTFY_URL'));
   noteNotify('test', '', r);
   if (!r.ok) throw new Error(r.error);
   return { sent: true };
@@ -2193,6 +2195,57 @@ function testNotify() {
 /** Run once from the editor after pasting release 10: Google asks you to let this script send email as you. Safe to run again. */
 function authorise() {
   Logger.log('Email permission: OK. This script can send ' + MailApp.getRemainingDailyQuota() + ' more emails today.');
+}
+
+/* ---------- A recheck of every exhibition is one batch, with one message at the end ----------
+ * "Check them all again" in Settings, and the look again after an update, put leads back in the queue across many exhibitions.
+ * Each exhibition finishing would send a message of its own; instead the batch remembers which exhibitions it covers, and one
+ * message goes out when none of them has anything left waiting. Anything done to one exhibition on its own (its own recheck,
+ * a list added to it, a lead in it checked again) takes it out of the batch, so it gets its own message as before.
+ * The helpers that change the batch are called inside the lock. */
+function readBatch() {
+  try { const b = JSON.parse(prop('BATCH') || 'null'); return b && Array.isArray(b.ids) && Array.isArray(b.shows) ? b : null; } catch (e) { return null; }
+}
+function writeBatch(b) {
+  if (b && b.ids.length) setProp('BATCH', JSON.stringify(b)); else PropertiesService.getScriptProperties().deleteProperty('BATCH');
+}
+/** Can email, to check and consent needed among the leads already checked, per exhibition, so a batch can say what changed. */
+function batchCounts(rows) {
+  const by = {};
+  rows.forEach((r) => {
+    if (r.state !== 'done' && r.state !== 'error') return;
+    const c = by[r.showId] = by[r.showId] || { corporate: 0, check: 0, consent: 0 };
+    if (r.emailable === 'corporate') c.corporate++; else if (r.emailable === 'check') c.check++; else c.consent++;
+  });
+  return by;
+}
+/** Starts a batch, or adds to the one still running. */
+function startBatch(kind, ids, queued, beforeBy) {
+  const old = readBatch();
+  const b = old || { at: nowIso(), kind, ids: [], shows: [], queued: 0, before: {} };
+  if (old && kind === 'all') b.kind = 'all';
+  ids.forEach((id) => {
+    if (b.ids.indexOf(id) < 0) b.ids.push(id);
+    if (b.shows.indexOf(id) < 0) { b.shows.push(id); b.before[id] = (beforeBy || {})[id] || { corporate: 0, check: 0, consent: 0 }; }
+  });
+  b.queued += queued;
+  writeBatch(b);
+}
+/** Takes exhibitions out of the batch, because something was done to them on their own. */
+function leaveBatch(ids) {
+  const b = readBatch();
+  if (!b) return;
+  const left = b.ids.filter((i) => ids.indexOf(i) < 0);
+  if (left.length !== b.ids.length) { b.ids = left; writeBatch(b); }
+}
+/** "519 checked again across 12 exhibitions. 340 can email (was 328), 80 to check (was 95), 99 need consent (was 96)." */
+function batchMessage(b, rows) {
+  const now = batchCounts(rows.filter((r) => b.shows.indexOf(r.showId) >= 0));
+  const sum = (by) => Object.keys(by).filter((id) => b.shows.indexOf(id) >= 0).reduce((a, id) => { a.corporate += by[id].corporate; a.check += by[id].check; a.consent += by[id].consent; return a; }, { corporate: 0, check: 0, consent: 0 });
+  const c = sum(now), was = sum(b.before || {});
+  const part = (n, words, w) => n + ' ' + words + (w !== n ? ' (was ' + w + ')' : '');
+  return b.queued + (b.kind === 'update' ? ' looked at again' : ' checked again') + ' across ' + b.shows.length + (b.shows.length === 1 ? ' exhibition' : ' exhibitions') + '. ' +
+    [part(c.corporate, 'can email', was.corporate), part(c.check, 'to check', was.check), part(c.consent, c.consent === 1 ? 'needs consent' : 'need consent', was.consent)].join(', ') + '.';
 }
 
 /** "Baby & Toddler Show: all 120 checked. 34 can email, 29 to check, 57 need consent. 9 sites wouldn’t open." */
@@ -2212,12 +2265,15 @@ function finishedMessage(show, rows) {
  */
 function notifyFinished(doneBy) {
   try {
-    if (!prop('NTFY_TOPIC')) return;
+    const topic = prop('NTFY_TOPIC');
     const ids = Object.keys(doneBy || {});
-    if (!ids.length) return;
+    if (!ids.length || (!topic && !readBatch())) return;
     const rows = readTab('Exhibitors', EX_COLS), shows = readTab('Shows', SHOW_COLS);
     const send = [];
+    let batchDone = null;
     withLock(() => {
+      const batch = readBatch();
+      const waiting = (id) => rows.some((r) => r.showId === id && (r.state === 'todo' || r.state === '' || r.state === 'working'));
       let sig = {};
       try { sig = JSON.parse(prop('NTFY_SIG') || '{}') || {}; } catch (e) { sig = {}; }
       Object.keys(sig).forEach((k) => { if (!shows.some((x) => x.id === k)) delete sig[k]; });   // exhibitions that are gone
@@ -2226,14 +2282,20 @@ function notifyFinished(doneBy) {
         if (!show || !mine.length || mine.some((r) => r.state === 'todo' || r.state === '' || r.state === 'working')) return;   // still some to do
         const stamp = mine.reduce((m, r) => (String(r.enrichedAt || '') > m ? String(r.enrichedAt) : m), '') + '|' + mine.length;
         if (sig[id] === stamp) return;   // another run already sent the message for this finish
-        sig[id] = stamp; send.push({ show, rows: mine });
+        sig[id] = stamp;
+        if (batch && batch.ids.indexOf(id) >= 0) return;   // part of a recheck of everything: one message when it is all done
+        send.push({ show, rows: mine });
       });
+      // the batch is done when none of its exhibitions (gone ones count as done) has anything left waiting
+      if (batch && !batch.ids.some(waiting)) { batchDone = batch; writeBatch(null); }
       setProp('NTFY_SIG', JSON.stringify(sig));
     });
+    if (!topic) return;
+    const base = prop('NTFY_URL');
     send.forEach((x) => {
-      const base = prop('NTFY_URL');
       noteNotify('finished', x.show.name, sendNtfy('Checks finished', finishedMessage(x.show, x.rows), base ? base + '#show=' + x.show.id : ''));
     });
+    if (batchDone) noteNotify('batch', '', sendNtfy(batchDone.kind === 'update' ? 'Checks after the update finished' : 'Recheck finished', batchMessage(batchDone, rows), base));
   } catch (e) {
     Logger.log('notify: ' + e);
     noteNotify('finished', '', { ok: false, error: 'The message could not be put together (' + clip(String((e && e.message) || e), 80) + ')' });
@@ -2334,16 +2396,18 @@ function recheckWeak(p) {
     const scope = p.showId ? String(p.showId) : '';
     const all = p.include === 'all';
     const rows = readTab('Exhibitors', EX_COLS);
-    const before = { corporate: 0, check: 0, consent: 0 };
+    const before = { corporate: 0, check: 0, consent: 0 }, batchBefore = batchCounts(rows), queued = {};
     let n = 0;
     const vals = rows.map((r) => {
       const inScope = !scope || r.showId === scope;
       if (inScope && (r.state === 'done' || r.state === 'error')) { if (before[r.emailable] != null) before[r.emailable]++; else before.consent++; }
       const weak = r.emailable === 'check' || (all && r.emailable === 'consent');
       const open = r.legal !== 'verified' || CLOSED.test(String(r.companyStatus || ''));   // a company found but closed is still worth another look
-      if (inScope && weak && (r.state === 'done' || r.state === 'error') && open && r.legalSrc !== 'Confirmed by you') { n++; return ['todo', '']; }
+      if (inScope && weak && (r.state === 'done' || r.state === 'error') && open && r.legalSrc !== 'Confirmed by you') { n++; queued[r.showId] = 1; return ['todo', '']; }
       return [r.state, r.note];
     });
+    if (scope) leaveBatch([scope]);   // one exhibition's own recheck: its own message
+    else if (n) startBatch('all', Object.keys(queued), n, batchBefore);   // every exhibition: one message at the end
     if (n) db().getSheetByName('Exhibitors').getRange(2, EX_COLS.indexOf('state') + 1, rows.length, 2).setValues(vals);   // state and note sit side by side
     setProp('RECHECK', JSON.stringify({ at: nowIso(), scope, include: all ? 'all' : 'check', queued: n, before }));
     return { queued: n, before };
@@ -2491,6 +2555,7 @@ function loadShow(p) {
     return { added: 0, skipped: 0, status: blocked ? 'blocked' : failed ? 'error' : 'empty', note: msg };
   }
   const res = addEntries(show, entries);
+  withLock(() => leaveBatch([show.id]));
   const note = (how === 'grid' ? 'Names only, so each exhibitor\u2019s own page on the show site is read for its website.' : '') + (blocked ? ' One link was skipped because the site asks automated tools not to read it.' : '');
   setShowStatus(show.id, 'loaded', note.trim());
   return Object.assign(res, { status: 'loaded', note: note.trim(), how });
@@ -2503,6 +2568,7 @@ function pasteList(p) {
   if (!entries.length) throw new Error('Nothing to add. Put one business on each line, with its website if you have it.');
   const res = addEntries(show, entries);
   setShowStatus(show.id, 'loaded', 'Pasted list');
+  withLock(() => leaveBatch([show.id]));
   return Object.assign(res, { status: 'loaded' });
 }
 
@@ -2744,11 +2810,13 @@ function recheck(p) {
     const ids = {};
     [].concat(p.ids || p.id || []).forEach((i) => { ids[i] = 1; });
     let n = 0;
+    const touched = {};
     readTab('Exhibitors', EX_COLS).forEach((r) => {
       if (!ids[r.id]) return;
       r.state = 'todo'; r.note = '';
-      writeObj('Exhibitors', EX_COLS, r); n++;
+      writeObj('Exhibitors', EX_COLS, r); n++; touched[r.showId] = 1;
     });
+    leaveBatch(Object.keys(touched));   // checked again on their own: their exhibition gets its own message
     return { reset: n };
   });
 }

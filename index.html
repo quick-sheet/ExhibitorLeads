@@ -182,11 +182,17 @@ header { display: grid; grid-template-columns: 1fr auto; align-items: start; pad
 .kv .v .logo { margin-right: 6px; }
 /* Waiting on Apps Script: a spinner in the button or in the message at the bottom */
 @keyframes spin { to { transform: rotate(360deg); } }
-.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; margin-right: 9px; flex: none; }
-.btn.busy::after, .menu button.busy::after, .chip.busy::after { content: ''; display: inline-block; width: 13px; height: 13px; margin-left: 8px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; }
+.spinner { display: inline-block; width: 14px; height: 14px; vertical-align: -2px; margin-right: 9px; flex: none; }
+.btn.busy::after, .menu button.busy::after, .chip.busy::after { content: ''; display: inline-block; width: 13px; height: 13px; margin-left: 8px; vertical-align: -2px; }
+/* The comet: a ring in the text colour whose tail fades away behind its head, turning steadily */
+.spinner, .btn.busy::after, .menu button.busy::after, .chip.busy::after {
+  border-radius: 50%; background: conic-gradient(from 90deg, transparent 10%, currentColor 95%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.2px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.2px), #000 calc(100% - 2px));
+  animation: spin .8s linear infinite;
+}
 .menu button { position: relative; }
 .menu button.busy::after { position: absolute; right: 4px; top: 50%; margin: -7px 0 0; }
-@media (prefers-reduced-motion: reduce) { .spinner, .btn.busy::after, .menu button.busy::after, .chip.busy::after { animation-duration: 2s; } }
 .title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .title-row > :first-child { flex: 1; min-width: 0; }
 .row-icons { display: flex; flex: none; margin: -9px -10px 0 0; }
@@ -275,6 +281,11 @@ dialog.sheet {
   overflow: auto; overscroll-behavior: contain;
 }
 dialog.sheet[open] { animation: rise .28s cubic-bezier(.2, .8, .2, 1); }
+/* Swipe right: the screen follows your finger and a back arrow appears at the left */
+.swipe-back { position: fixed; left: 12px; top: 50%; width: 40px; height: 40px; margin-top: -20px; border-radius: 50%; background: var(--raise-2); color: var(--ink);
+  display: grid; place-items: center; opacity: 0; pointer-events: none; z-index: 20; box-shadow: 0 4px 16px rgba(0, 0, 0, .25); }
+.swipe-back svg { width: 22px; height: 22px; }
+.swipe-back.ready { background: var(--ink); color: var(--bg); }
 dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 @keyframes rise { from { transform: translateY(40px); opacity: 0; } }
 .sheet-in { padding: 10px 22px calc(28px + env(safe-area-inset-bottom)); }
@@ -402,10 +413,13 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
+  /* a spinner is how you know something is happening: it keeps turning, slowly, when the phone asks for less motion */
+  .spinner, .btn.busy::after, .menu button.busy::after, .chip.busy::after { animation: spin 1.6s linear infinite !important; }
 }
 </style>
 </head>
 <body>
+<div class="swipe-back" id="swipeBack" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></div>
 <div class="top" id="top"><div class="top-in">
   <header>
     <div class="brand">
@@ -452,7 +466,7 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
 <div class="toast" id="toast" role="status" popover="manual"></div>
 
-<script src="core.js?v=18"></script>
+<script src="core.js?v=19"></script>
 <script>
 (() => {
 'use strict';
@@ -595,7 +609,7 @@ function setUsage(u) {
 const oldScript = (e) => (/unknown action/i.test(e.message || '') ? 'Your Apps Script needs its new version first. The README says how (Update).' : e.message);
 
 // The release of Apps Script code this app expects. Shown in Settings; a warning appears when the script behind the app is older.
-const EXPECT_BUILD = 15;
+const EXPECT_BUILD = 16;
 
 async function checkBuild() {
   if (!S.api) return;
@@ -754,12 +768,30 @@ setInterval(() => {
 
 /* ---------- Routing ---------- */
 function go(route, replace) {
+  const was = S.route;
   S.route = route;
   S.filter = 'all'; S.q = ''; S.limit = 200;
-  if (replace) history.replaceState({ r: route }, ''); else history.pushState({ r: route }, '');
+  // each step remembers the screen it came from, so going up can step back instead of adding to the history
+  if (replace) history.replaceState({ r: route, prev: (history.state || {}).prev || null }, ''); else history.pushState({ r: route, prev: was || null }, '');
   E.userPaused = false;
   enter();
   window.scrollTo(0, 0);
+}
+/** The screen one level up: a sector goes home, an exhibition goes to its sector. Null on the home screen. */
+function parentOf(r) {
+  if (!r || r.v === 'home') return null;
+  if (r.v === 'show') { const s = showById(r.showId); return s ? { v: 'sector', sector: s.sector } : { v: 'home' }; }
+  return { v: 'home' };
+}
+const sameRoute = (a, b) => !!a && !!b && a.v === b.v && (a.v === 'home' || (a.v === 'sector' ? a.sector === b.sector : a.showId === b.showId));
+/** Up one level, the same whichever way you arrived: back when you came from there, otherwise straight to it. */
+function goUp() {
+  const up = parentOf(S.route);
+  if (!up) return false;
+  closeFind();
+  if (history.state && sameRoute(history.state.prev, up)) { history.back(); return 'back'; }
+  go(up, true);
+  return 'go';
 }
 window.addEventListener('popstate', (e) => {
   S.route = (e.state && e.state.r) || { v: 'home' };
@@ -980,6 +1012,92 @@ function openSheet(html) {
 }
 function closeSheet() { if (sheet.open) sheet.close(); }
 sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
+
+/* ---------- Gestures ----------
+ * Swipe right on a screen to go up a level (an exhibition to its sector, a sector to home). Swipe right on a popup to close it,
+ * or, where the popup has its own Back (Why this result?, Enter company number), to go back one step. Drag a popup's handle or
+ * title down to close it. The screen follows your finger; let go past a third of the way, or flick, and it happens, otherwise it
+ * springs back. Never on text boxes or anything that scrolls sideways, and never when the swipe is mostly
+ * up or down, so scrolling is untouched. With less motion asked for, nothing slides: the arrow shows and it simply happens. */
+const G = { on: null };
+const lessMotion = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+const NO_SWIPE = 'input, textarea, select, [contenteditable], .find';
+function scrollsSideways(el, stop) {
+  for (let x = el; x && x !== stop && x !== document.body && x.nodeType === 1; x = x.parentElement) {
+    if (x.scrollWidth > x.clientWidth + 2 && /auto|scroll/.test(getComputedStyle(x).overflowX)) return true;
+  }
+  return false;
+}
+function dragEl(g) { return g.kind === 'page' ? $('#main') : sheet; }
+function dragTo(g, px) {
+  const el = dragEl(g), arrow = $('#swipeBack');
+  if (g.kind === 'page') {
+    const p = Math.min(1, px / (innerWidth / 3));
+    arrow.style.opacity = String(p); arrow.classList.toggle('ready', p >= 1);
+    arrow.style.transform = `translateX(${Math.round(Math.min(px / 4, 16))}px)`;
+  }
+  if (lessMotion()) return;
+  el.style.transform = g.kind === 'down' ? `translateY(${px}px)` : `translateX(${px}px)`;
+}
+function dragReset(g) {
+  const el = dragEl(g), arrow = $('#swipeBack');
+  el.style.transition = ''; el.style.transform = ''; el.style.willChange = '';
+  arrow.style.opacity = '0'; arrow.style.transform = ''; arrow.classList.remove('ready');
+}
+function dragDone(g) {
+  if (g.kind === 'page') return goUp();
+  if (g.kind === 'sheet') { const back = sheet.querySelector('[data-act=back-to-row], [data-act=pick-back]'); if (back) back.click(); else closeSheet(); }
+  else closeSheet();
+  return 'go';
+}
+/** Puts the screen back in place once the new one is drawn: at once, or when the browser has stepped back (a moment later). */
+function dragSettle(g, how) {
+  if (how !== 'back') { dragReset(g); return; }
+  let done = false;
+  const fin = () => { if (!done) { done = true; requestAnimationFrame(() => dragReset(g)); } };
+  addEventListener('popstate', fin, { once: true });
+  setTimeout(fin, 400);
+}
+function dragEnd(g, at) {
+  const el = dragEl(g);
+  const d = g.kind === 'down' ? g.dy : g.dx, size = g.kind === 'down' ? el.getBoundingClientRect().height : innerWidth;
+  const fast = d > 40 && d / Math.max(1, at - g.t0) > 0.5;
+  const go = d > size / (g.kind === 'down' ? 4 : 3) || fast;
+  if (lessMotion()) { dragReset(g); if (go) dragDone(g); return; }
+  el.style.transition = 'transform .18s cubic-bezier(.2, .8, .2, 1)';
+  if (!go) { el.style.transform = ''; $('#swipeBack').style.opacity = '0'; setTimeout(() => dragReset(g), 190); return; }
+  el.style.transform = g.kind === 'down' ? 'translateY(100%)' : `translateX(${innerWidth}px)`;
+  setTimeout(() => dragSettle(g, dragDone(g)), 170);
+}
+document.addEventListener('touchstart', (e) => {
+  G.on = null;
+  if (e.touches.length !== 1) return;
+  const t = e.touches[0], target = e.target;
+  const inSheet = sheet.open && sheet.contains(target);
+  if (sheet.open && !inSheet) return;   // the dimmed backdrop: a tap there closes, that is all
+  const g = { x0: t.clientX, y0: t.clientY, t0: e.timeStamp, dx: 0, dy: 0, dir: '' };
+  if (inSheet && target.closest('.grabber, .sheet-head') && !target.closest('button, a') && sheet.scrollTop <= 0) { G.on = Object.assign(g, { kind: 'down' }); return; }
+  if (target.closest(NO_SWIPE) || scrollsSideways(target, inSheet ? sheet : null) || String((window.getSelection && getSelection()) || '').length) return;
+  if (!inSheet && !parentOf(S.route)) return;   // the home screen: nowhere to go up to
+  if (!inSheet && !standalone && t.clientX < 24) return;   // in a browser tab its own edge swipe already goes back
+  G.on = Object.assign(g, { kind: inSheet ? 'sheet' : 'page' });
+}, { passive: true });
+document.addEventListener('touchmove', (e) => {
+  const g = G.on;
+  if (!g || e.touches.length !== 1) return;
+  const t = e.touches[0];
+  g.dx = t.clientX - g.x0; g.dy = t.clientY - g.y0;
+  if (!g.dir) {
+    if (Math.abs(g.dx) < 10 && Math.abs(g.dy) < 10) return;
+    g.dir = g.kind === 'down' ? (g.dy > 0 && g.dy > Math.abs(g.dx) ? 'y' : 'no') : (g.dx > 0 && g.dx > Math.abs(g.dy) * 1.5 ? 'x' : 'no');
+    if (g.dir === 'no') { G.on = null; return; }
+    dragEl(g).style.willChange = 'transform';
+  }
+  if (e.cancelable) e.preventDefault();   // nothing scrolls while you drag
+  dragTo(g, Math.max(0, g.dir === 'y' ? g.dy : g.dx));
+}, { passive: false });
+document.addEventListener('touchend', (e) => { const g = G.on; G.on = null; if (g && g.dir) dragEnd(g, e.timeStamp); }, { passive: true });
+document.addEventListener('touchcancel', () => { const g = G.on; G.on = null; if (g && g.dir) dragReset(g); }, { passive: true });
 const head = (title) => `<div class="sheet-head"><h2 id="sheetTitle">${esc(title)}</h2><button class="icon-btn" type="button" data-act="close" aria-label="Close">${ICON.x}</button></div>`;
 
 /* Detail */
@@ -1570,7 +1688,7 @@ async function submitRename(form) {
       await refreshShows();
       S.set.lastSector = to; saveSet();
       S.route = { v: 'sector', sector: to };
-      history.replaceState({ r: S.route }, '');
+      history.replaceState({ r: S.route, prev: (history.state || {}).prev || null }, '');
       renderMain();
       toast(`Renamed to ${to}`);
     } catch (e) { await refreshShows(); renderMain(); setOffline(e); toast(e.message); }
@@ -1581,7 +1699,7 @@ async function act(name, t) {
   const d = t.dataset, s = showById(S.route.showId);
   switch (name) {
     case 'close': closeSheet(); break;
-    case 'back': history.back(); break;
+    case 'back': if (!goUp()) history.back(); break;
     case 'settings': openSettings(); break;
     case 'hide-usage': S.usageHidden = usageKey(); renderNotices(); break;
     case 'retry': {
