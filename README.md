@@ -57,6 +57,20 @@ This is a guide, not legal advice.
 2. Open the **Actions** tab and wait for **Deploy to Pages** to show a green tick (usually under a minute). Opening `sw.js` on the live address should show the new `exhibitorleads-vN` name.
 3. Fully close the app and reopen it. If it still looks the same, close and reopen once more.
 
+**Release 17 (Apps Script release 15).** The company check reads the copyright line when it is written in words, and when the company it finds has closed, it looks for the active company that took over at the same address.
+
+1. Paste the new `Code.gs` over the old one and save. You do not need to run `authorise` or `setup` again.
+2. **Deploy, Manage deployments**, the pencil, **New version**, **Deploy**.
+3. Upload `index.html`, `core.js`, `sw.js` and `README.md`, and commit. Wait for the green tick in **Actions**, then fully close and reopen the app. Settings should say **Apps Script release: 15, up to date**.
+
+What release 17 changes:
+
+- **Copyright written in words.** Footers such as “All work and content copyright of Lee Sinclair Furniture Ltd (2024)” were skipped, because only “© 2024 X Ltd” or “Copyright 2024 X Ltd” counted. Now “copyright of X Ltd”, “Copyright X Ltd”, “is the copyright of”, “belongs to” and “held by” count too, but only when the name is the business's own or shares two of its words (Lee **Sinclair Furniture** for Griffin & **Sinclair Furniture**). Sites use the same words to credit fabric, patterns, books and photographs (“the copyright of Liberty Fabric Ltd”), so those are never taken. The name must still end Ltd, Limited, LLP or PLC and be exactly one company on the register.
+- **Closed company, active successor.** Owners sometimes close one company and carry on through another at the same address (GRIFFIN AND SINCLAIR LTD, dissolved, and LEE SINCLAIR FURNITURE LIMITED, active, both at DN22 0NA). When a company confirmed from the business's own website has closed (dissolved, in liquidation and the like), the check asks Companies House for the active companies registered at the same postcode. It keeps one whose name shares the closed company's words, not a place or “group”, “holdings” and the like. It is **confirmed** only when a director of the closed company is a director of the new one too. Otherwise it is offered as **to check** with “No director in common”, because many owners go back to trading on their own. Nothing is looked for when the closed company was only matched by name, at a shared address, when the register cannot say how many companies are there, or when two companies fit equally well.
+- **Closed ones looked at again, once.** After the update, leads confirmed against a company that has since closed go back in the queue by themselves (ones you confirmed stay). **Check the “to check” ones again** now includes them too, and a closed company is never copied to another lead on the same website.
+- **Settings, How companies were matched** has three new lines: “Company found, but no longer active”, “Same director as its closed company, registered at the same postcode” and “Active company at the postcode of its closed one”.
+- Leads marked **consent needed** before this release are not rechecked automatically. If you want the new copyright reading applied to them, tap **Include consent needed** under **Check the “to check” ones again** in Settings. That reads those websites again, so it takes a while in the background.
+
 **Release 16 (app only; the Apps Script stays at release 14).** A tidier top to the home, sector and exhibition screens: a tick when everything is checked, and checking shown on one line with a round play or pause button.
 
 1. Nothing to do in Apps Script. Settings keeps saying **Apps Script release: 14, up to date**.

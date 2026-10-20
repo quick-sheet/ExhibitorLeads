@@ -575,10 +575,13 @@
     ['postcode', 'Registered postcode on its website', 'corporate'],
     ['director', 'A director named on its website, as its contact or in its email', 'corporate'],
     ['dirpost', 'A director\u2019s postcode on its website', 'corporate'],
+    ['carryon', 'Same director as its closed company, registered at the same postcode', 'corporate'],
     ['you', 'Confirmed by you', 'corporate'],
+    ['closed', 'Company found, but no longer active', 'check'],
     ['same', 'Same name on Companies House', 'check'],
     ['conflict', 'Same name, but its website names another company', 'check'],
     ['branch', 'May be a franchise or branch of the company named', 'check'],
+    ['successor', 'Active company at the postcode of its closed one', 'check'],
     ['similar', 'Similar name on Companies House', 'check'],
     ['none', 'No company found', 'consent'],
   ];

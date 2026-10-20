@@ -14,7 +14,7 @@
 
 const VERSION = 1;
 // Which release of this code is live. The app shows it in Settings and warns when it is older than the app expects.
-const BUILD = 14;
+const BUILD = 15;
 const TZ = 'Europe/London';
 const UA = 'ExhibitorLeads/1 (personal prospecting tool; Google Apps Script)';
 const MAX_BODY = 600000;
@@ -32,7 +32,7 @@ const LATE_NOTE = 'Took too long, so some pages were skipped. Use Check again to
 const PLAN = { fetches: 100000, bgMinutes: 360 };
 
 // Raise this when the checking gets better, and every result that is not yet confirmed is looked at again once.
-const PROTO = 2;
+const PROTO = 3;
 
 // Where terms and privacy pages usually live, tried when a site's own links do not lead to them.
 const PAGE_PAIR = 2;   // pages of one website read together
@@ -149,17 +149,20 @@ function usageInfo() {
 }
 
 /**
- * Once after an upgrade: results that were not confirmed (anything but a company number found on its own site,
- * or a company you confirmed) go back in the queue, so the better checking looks at them again.
+ * Once after an upgrade, leads the better checking can do something about go back in the queue. Ones you confirmed stay.
+ * Level 2: results that were not confirmed. Level 3 (release 15): companies found but closed (dissolved, in liquidation),
+ * since the check now looks for the active company that took over at the same address.
  */
 function migrateOnce() {
   if (+prop('PROTO') >= PROTO) return 0;
   return withLock(() => {
-    if (+prop('PROTO') >= PROTO) return 0;
+    const from = +prop('PROTO') || 0;
+    if (from >= PROTO) return 0;
     const rows = readTab('Exhibitors', EX_COLS);
     let n = 0;
     const vals = rows.map((r) => {
-      if ((r.state === 'done' || r.state === 'error') && r.legal !== 'verified' && r.legalSrc !== 'Confirmed by you') { n++; return ['todo', '']; }
+      const again = (from < 2 && r.legal !== 'verified') || (from < 3 && r.legal === 'verified' && CLOSED.test(String(r.companyStatus || '')));
+      if ((r.state === 'done' || r.state === 'error') && again && r.legalSrc !== 'Confirmed by you') { n++; return ['todo', '']; }
       return [r.state, r.note];
     });
     if (rows.length) db().getSheetByName('Exhibitors').getRange(2, EX_COLS.indexOf('state') + 1, rows.length, 2).setValues(vals);   // state and note sit side by side
@@ -730,24 +733,39 @@ function ownerStatements(text, keys) {
   const cr = /©|\(c\)|\bcopyright\b/gi;
   while ((m = cr.exec(t))) {
     const rest = t.slice(m.index + m[0].length, m.index + m[0].length + 200);
-    const lead = /^\s*(?:(?:©|\(c\)|copyright)\s*)*((?:19|20)\d\d(?:\s*[-–]\s*(?:(?:19|20)\d\d|present))?)?[\s,.]*/i.exec(rest);
-    // the © sign, or a year after "(c)" or "Copyright", so a "(c)" in a numbered list or the word in a sentence is not taken
-    if (m[0] !== '©' && !(lead && lead[1]) && !/^\s*(?:©|\(c\))/i.test(rest)) continue;
-    const name = nameAfter(rest.slice(lead ? lead[0].length : 0));
+    const lead = /^\s*(?:(?:©|\(c\)|copyright)\s*)*((?:19|20)\d\d(?:\s*[-–]\s*(?:(?:19|20)\d\d|present))?)?[\s,.:]*/i.exec(rest);
+    let from = lead ? lead[0].length : 0;
+    // "copyright of Lee Sinclair Furniture Ltd (2024)", "copyright belongs to", "is held by", "owned by": the owner follows
+    const whose = /^(?:(?:is\s+)?(?:the\s+)?(?:property\s+of|of|by|belongs?\s+to|(?:is\s+)?(?:held|owned)\s+by)\s+)/i.exec(rest.slice(from));
+    if (whose) from += whose[0].length;
+    // the © sign, or a year after "(c)" or "Copyright", so a "(c)" in a numbered list is not taken. The word "copyright" without a
+    // year counts when a company name ending Ltd, Limited, LLP or PLC follows it in the same sentence ("copyright of Smith Trading
+    // Ltd", "Copyright Smith Trading Ltd"), not when its sentence ends there ("protected by copyright. Smith Ltd …")
+    const signed = m[0] === '©' || (lead && lead[1]) || /^\s*(?:©|\(c\))/i.test(rest);
+    if (!signed && !(/^copyright$/i.test(m[0]) && !/^\s*[.!?;]/.test(rest))) continue;
+    const name = nameAfter(rest.slice(from));
     if (!name) continue;
     if (marks.length && marks[marks.length - 1].name === name) continue;   // "Copyright © 2026 Y Ltd" is one line, not two
-    marks.push({ name, at: m.index });
+    marks.push({ name, at: m.index, signed: !!signed });
   }
-  marks.forEach((x, n) => {
-    if (isOwnName(x.name, keys) || keys.some((k) => normKey(x.name).split(' ').some((w) => w.length >= 4 && k.indexOf(w) >= 0))) { add(x.name, 'copyright'); return; }
+  const signedMarks = marks.filter((x) => x.signed);
+  marks.forEach((x) => {
     const before = t.slice(Math.max(0, x.at - 80), x.at);
-    const footer = n === marks.length - 1 && x.at >= t.length - 800;
     // "Website design © 2025 Pixel Studio Ltd", "Thomas & Friends™ © 2026 …", a photographer: whoever made the site, the pictures or the character
     const credited = t.slice(Math.max(0, x.at - 200), x.at).toLowerCase();
     const madeIt = /(design|develop|built|website|site\s+by|hosting|seo|theme|template|photo|picture|image|illustrat|artwork|logo|music|font|character|powered\s+by|review)/.exec(credited);
     // "Logo design: Fox & Owl Ltd. © 2026 Fox & Owl Ltd": the holder was just credited for making something
-    if (madeIt && credited.indexOf(x.name.toLowerCase(), madeIt.index) >= 0) return;
-    if (!footer || MAKER_WORDS.test(x.name) || /[™®]/.test(before) || /(design|develop|built|website|site\s+by|hosting|seo|theme|template|photo|picture|image|illustrat|artwork|logo|music|font|character|powered\s+by|review)(?:(?!\.\s)[^|]){0,40}$/i.test(before)) return;
+    const maker = (madeIt && credited.indexOf(x.name.toLowerCase(), madeIt.index) >= 0) || MAKER_WORDS.test(x.name) || /[™®]/.test(before) ||
+      /(design|develop|built|website|site\s+by|hosting|seo|theme|template|photo|picture|image|illustrat|artwork|logo|music|font|character|powered\s+by|review)(?:(?!\.\s)[^|]){0,40}$/i.test(before);
+    if (isOwnName(x.name, keys)) { add(x.name, 'copyright'); return; }
+    // words of four letters or more it shares with the business's own names ("Sinclair", "Furniture")
+    const shared = normKey(x.name).split(' ').filter((w, i, a) => w.length >= 4 && a.indexOf(w) === i && keys.some((k) => k.indexOf(w) >= 0)).length;
+    // "copyright of X Ltd" in words is how sites credit suppliers, pattern makers and licensors too ("the copyright of Liberty Fabric
+    // Ltd", "copyright of Candle Shack Ltd"): it counts only when it shares two words with the business, and never as the last line
+    if (!x.signed) { if (shared >= 2 && !maker) add(x.name, 'copyright'); return; }
+    if (shared >= 1 && !maker) { add(x.name, 'copyright'); return; }
+    // the last © line at the foot of the page, when it is not a maker's credit
+    if (x !== signedMarks[signedMarks.length - 1] || x.at < t.length - 800 || maker) return;
     add(x.name, 'copyright');
   });
   return out;
@@ -875,6 +893,43 @@ function postcodeShared(pc, ctx) {
     cache[pc] = n;
   }
   return cache[pc] > SHARED_OVER;
+}
+
+// Company statuses that mean it no longer trades, or is being wound up. A company "in a voluntary arrangement" still trades.
+const CLOSED = /^(dissolved|liquidation|converted-closed|removed|closed|insolvency-proceedings|receivership|administration)$/;
+const CLOSED_WORDS = { dissolved: 'dissolved', liquidation: 'in liquidation', 'converted-closed': 'closed', removed: 'removed from the register', closed: 'closed', 'insolvency-proceedings': 'in insolvency proceedings', receivership: 'in receivership', administration: 'in administration' };
+const closedWord = (status) => CLOSED_WORDS[status] || String(status || 'not active');
+
+/**
+ * Owners often close a company and carry on through a new one at the same address: GRIFFIN AND SINCLAIR LTD (dissolved) and
+ * LEE SINCLAIR FURNITURE LIMITED (active) are both registered at DN22 0NA. When the company a check lands on has closed, this asks
+ * Companies House for the active companies registered at its postcode and keeps those whose names share a word with the business
+ * (not "group", "holdings", "trading" and the like). Not at a shared address, and only when one company shares more words than the
+ * rest. Returns that company, or null.
+ */
+function activeSuccessor(old, exName, ctx, say) {
+  if (!old || !old.pc || !CLOSED.test(String(old.status || ''))) return null;
+  if (postcodeShared(old.pc, ctx)) { say(old.pc + ', where ' + old.name + ' was registered, is a shared address where many companies are registered, so no other company there was looked for'); return null; }
+  // the register could not say how many companies are there: that could be a virtual office, so nothing is looked for
+  if (((ctx && ctx.pcCount) || {})[old.pc] < 0) { say('Companies House could not say how many companies are registered at ' + old.pc + ', so no other company there was looked for'); return null; }
+  let r;
+  try { r = chGet('/advanced-search/companies?size=50&company_status=active&location=' + encodeURIComponent(old.pc)); } catch (e) { r = { code: 0 }; }
+  if (r.code !== 200 || !r.json) { say('Companies House did not answer the search for active companies at ' + old.pc); return null; }
+  if ((+r.json.hits || 0) >= SHARED_OVER) { say(old.pc + ' has ' + r.json.hits + ' active companies, so none of them proves anything'); return null; }
+  // words of the name it is listed under that the closed company's name has too (not a place, "group", "holdings" and the like)
+  const telling = (w) => w.length >= 3 && !GENERIC_CO.test(w) && !LEAD_JUNK.test(w) && !PLACES[w];
+  const oldWords = normKey(old.name).split(' ').filter((w, i, a) => telling(w) && a.indexOf(w) === i);
+  const words = Object.create(null);
+  normKey(exName).split(' ').forEach((w) => { if (telling(w) && oldWords.indexOf(w) >= 0) words[w] = 1; });
+  // a shared word of four letters or more ("Sinclair"), or two short ones ("Oak & Ash"), and at least half the closed company's
+  // telling words: GRIFFIN AND SINCLAIR to LEE SINCLAIR FURNITURE yes, JANE SMITH CERAMICS to JOHN SMITH BUILDERS no
+  const fits = (r.json.items || []).map(chShape).filter((c) => c.no && c.no !== old.no && c.status === 'active' && c.pc === old.pc)
+    .map((c) => { const sh = normKey(c.name).split(' ').filter((w, i, a) => words[w] && a.indexOf(w) === i); return { c, n: sh.length, ok: (sh.some((w) => w.length >= 4) || sh.length >= 2) && sh.length * 2 >= oldWords.length }; })
+    .filter((x) => x.ok).sort((a, b) => b.n - a.n);
+  if (!fits.length) { say('No active company registered at ' + old.pc + ' shares a word with its name'); return null; }
+  if (fits.length > 1 && fits[1].n === fits[0].n) { say('Active companies at ' + old.pc + ' that share a word with its name: ' + fits.slice(0, 3).map((x) => x.c.name).join(', ') + '. More than one fits, so none is picked'); return null; }
+  say('Active company registered at ' + old.pc + ', where ' + old.name + ' (' + closedWord(old.status) + ') is registered: ' + fits[0].c.name + ' (' + fits[0].c.no + ')');
+  return fits[0].c;
 }
 
 // Places a franchise class or a branch adds to its name ("Baby Sensory Kent"). When the company name lacks the place, the company
@@ -1533,7 +1588,7 @@ const COPY_FROM_DONOR = ['email', 'emailKind', 'emailSrc', 'contact', 'contactSr
 
 /** A finished row can stand in for another exhibitor on the same website, but only when it was properly read. */
 function usableDonor(r) {
-  return r.state === 'done' && r.domain && r.enrichedAt && r.legal === 'verified' && /^((Company number|Legal name|Registered postcode) on its website|Company behind the brand|Copyright holder|Director)/.test(r.legalSrc) &&
+  return r.state === 'done' && r.domain && r.enrichedAt && r.legal === 'verified' && !CLOSED.test(String(r.companyStatus || '')) && /^((Company number|Legal name|Registered postcode) on its website|Company behind the brand|Copyright holder|Director|Same director as)/.test(r.legalSrc) &&
     !/not read|asks automated|did not respond|No website|Same website|Same exhibitor/i.test(r.note);
 }
 
@@ -1597,8 +1652,9 @@ function nameDonorFor(ex, ctx) {
   let best = null, bestRank = -1;
   list.forEach((d) => {
     if (d.id === ex.id || (dom && d.domain && dom !== d.domain)) return;
-    if (d.legal !== 'verified' && ex.legal) return;
-    const rank = (d.legal === 'verified' ? 4 : 0) + (REUSED.test(d.note) ? 0 : 2) + (d.domain ? 1 : 0);
+    const strong = d.legal === 'verified' && !CLOSED.test(String(d.companyStatus || ''));   // a closed company is as weak as a guess
+    if (!strong && ex.legal) return;
+    const rank = (strong ? 4 : 0) + (REUSED.test(d.note) ? 0 : 2) + (d.domain ? 1 : 0);
     if (rank > bestRank || (rank === bestRank && d.enrichedAt > best.enrichedAt)) { best = d; bestRank = rank; }
   });
   return best;
@@ -1615,11 +1671,12 @@ function enrichOne(ex, ctx) {
 
   // 0. The same exhibitor (same name, same sector, no different website) already checked under another exhibition: reuse it,
   //    without a single web request. A lead you confirmed yourself, or one already confirmed, is left to its own check.
-  if (ex.legalSrc !== 'Confirmed by you' && ex.legal !== 'verified') {
+  if (ex.legalSrc !== 'Confirmed by you' && (ex.legal !== 'verified' || CLOSED.test(String(ex.companyStatus || '')))) {
     const nd = nameDonorFor(ex, ctx);
     const dom0 = siteDomain(ex.website);
     // a website we already know that has been read properly is the better evidence than a weak result under the same name
-    if (nd && !(nd.legal !== 'verified' && dom0 && donorFor(dom0, ex.id, ctx))) {
+    const ndStrong = nd && nd.legal === 'verified' && !CLOSED.test(String(nd.companyStatus || ''));
+    if (nd && !(!ndStrong && dom0 && donorFor(dom0, ex.id, ctx))) {
       const patch0 = {};
       applyDonor(ex, nd, patch0);
       if (!ex.website && nd.website) { patch0.website = nd.website; patch0.domain = nd.domain; }
@@ -1908,6 +1965,24 @@ function enrichOne(ex, ctx) {
         }
         if (found) { co = found.c; legal = 'verified'; how = found.how; }
       }
+      //  4b. The company it landed on has closed (dissolved, in liquidation). An active company registered at the same postcode whose
+      //      name shares a word with the business is most likely the one it trades through now. Confirmed when that postcode is on its
+      //      pages, or when a director of the closed company is a director of the new one too; otherwise offered for you to decide.
+      //      Only after the closed company was confirmed from its own website: a closed company found by its name alone may not be this
+      //      business at all. The postcode only says where the business is, and many owners go back to trading on their own, so the
+      //      new company is confirmed only when a director of the closed one is a director of it too. Otherwise it is offered.
+      if (co && legal === 'verified' && !conflict && CLOSED.test(String(co.status || ''))) {
+        const old = co, gone = closedWord(old.status);
+        const nu = activeSuccessor(old, ex.name, ctx, say);
+        if (nu) {
+          const a = chOfficers(old.no, ctx), b = chOfficers(nu.no, ctx);
+          const both = a && b ? a.filter((o) => b.some((p) => p.last === o.last && p.first === o.first))[0] : null;
+          say(both ? both.name + ' is a director of both' : a && b ? 'No director of ' + old.name + ' is a director of ' + nu.name : 'The directors could not be fetched from Companies House just now');
+          co = nu;
+          if (both) { legal = 'verified'; how = 'Same director as ' + old.name + ', now ' + gone + ', and registered at the same postcode (' + nu.pc + '): ' + both.name; }
+          else { legal = 'possible'; how = 'Active company registered at the same postcode as ' + old.name + ', now ' + gone + ' (' + nu.pc + '). No director in common, so it may not be the same business'; }
+        }
+      }
       //  5. A franchise class or a branch ("Baby Sensory Kent") often shows the franchisor's or head office's details. If its listed name
       //     adds a place the company's name lacks, or its site says it is a franchise or independently owned, a match by name, director
       //     or postcode is left for you to decide. A company number on its own pages still stands, unless both signs are there.
@@ -2195,18 +2270,21 @@ function speedInfo() {
 
 /** How each company match was made, across everything that has been checked. */
 function evidenceInfo(rows) {
-  const e = { number: 0, name: 0, owner: 0, postcode: 0, director: 0, dirpost: 0, same: 0, conflict: 0, branch: 0, similar: 0, you: 0, none: 0 };
+  const e = { number: 0, name: 0, owner: 0, postcode: 0, director: 0, dirpost: 0, carryon: 0, closed: 0, same: 0, conflict: 0, branch: 0, successor: 0, similar: 0, you: 0, none: 0 };
   rows.forEach((r) => {
     if (r.state !== 'done' && r.state !== 'error') return;
     const w = String(r.legalSrc || '');
-    if (/^Company number on its website/.test(w)) e.number++;
+    if (r.companyNo && CLOSED.test(String(r.companyStatus || '')) && !/confirmed by you/i.test(w)) e.closed++;
+    else if (/^Company number on its website/.test(w)) e.number++;
     else if (/^Legal name on its website/.test(w)) e.name++;
     else if (/^(Company behind the brand|Copyright holder) on its website/.test(w)) e.owner++;
     else if (/^Registered postcode on its website/.test(w)) e.postcode++;
     else if (/^Director\u2019s postcode/.test(w)) e.dirpost++;
     else if (/^Director /.test(w)) e.director++;
+    else if (/^Same director as /.test(w)) e.carryon++;
+    else if (/^Active company registered at the same postcode as /.test(w)) e.successor++;
     else if (/^May be a franchise or branch/.test(w)) e.branch++;
-    else if (/^Same name on Companies House/.test(w) && r.legal === 'possible') e.conflict++;
+    else if (/^Same name on Companies House/.test(w) && /Its website names /.test(w)) e.conflict++;
     else if (/^Same name on Companies House/.test(w)) e.same++;
     else if (/^Similar name on Companies House/.test(w)) e.similar++;
     else if (/confirmed by you/i.test(w)) e.you++;
@@ -2262,7 +2340,8 @@ function recheckWeak(p) {
       const inScope = !scope || r.showId === scope;
       if (inScope && (r.state === 'done' || r.state === 'error')) { if (before[r.emailable] != null) before[r.emailable]++; else before.consent++; }
       const weak = r.emailable === 'check' || (all && r.emailable === 'consent');
-      if (inScope && weak && (r.state === 'done' || r.state === 'error') && r.legal !== 'verified' && r.legalSrc !== 'Confirmed by you') { n++; return ['todo', '']; }
+      const open = r.legal !== 'verified' || CLOSED.test(String(r.companyStatus || ''));   // a company found but closed is still worth another look
+      if (inScope && weak && (r.state === 'done' || r.state === 'error') && open && r.legalSrc !== 'Confirmed by you') { n++; return ['todo', '']; }
       return [r.state, r.note];
     });
     if (n) db().getSheetByName('Exhibitors').getRange(2, EX_COLS.indexOf('state') + 1, rows.length, 2).setValues(vals);   // state and note sit side by side
