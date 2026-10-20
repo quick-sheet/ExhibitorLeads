@@ -57,6 +57,24 @@ This is a guide, not legal advice.
 2. Open the **Actions** tab and wait for **Deploy to Pages** to show a green tick (usually under a minute). Opening `sw.js` on the live address should show the new `exhibitorleads-vN` name.
 3. Fully close the app and reopen it. If it still looks the same, close and reopen once more.
 
+**Release 14 (Apps Script release 14).** Two bars replace the stand plan, Google and Microsoft get their tiles, menus answer the moment you tap, a company name written on a business's own website is taken at its word, and websites open in Chrome from the installed app.
+
+1. Paste the new `Code.gs` over the old one and save. You do not need to run `authorise` or `setup` again.
+2. **Deploy, Manage deployments**, the pencil, **New version**, **Deploy**.
+3. Upload `index.html`, `core.js`, `sw.js`, `README.md` and the two new files `google.png` and `microsoft.png`, and commit. Wait for the green tick in **Actions**, then fully close and reopen the app. Settings should say **Apps Script release: 14, up to date**.
+
+What release 14 changes:
+
+- **Two bars instead of the stand plan,** on the home, sector and exhibition screens. **Can you email them?** shows can email, need a quick check and need consent; **Who runs their email?** shows Google, Microsoft, and other or not known. Each bar sits right above its own lines, in the same colours, order and proportions, so the picture and the numbers always agree. Each group's percentages add up to 100.
+- **While checks run,** the part of each bar not checked yet is striped, so the bars show progress as well. The percentages stay a share of the exhibitors checked so far.
+- **Google and Microsoft tiles** on the lines, the filters (now just **Google** and **Microsoft**), each lead and its detail. A lead's second line reads “Can email, Google, Stand E23”; one that is neither reads “Other email”.
+- **A company name on its own website is taken at its word.** If a business's site names its company (“MAGICBABY LTD”, with or without the brand in front of it), and Companies House has exactly that name, the lead is confirmed with that company's number. No postcode or address has to match. Two cases that used to be missed now work:
+  - the page runs the brand into the company name, as Venicci's footer does (“Venicci UK & Ireland MAGICBABY LTD”): the company part is looked up on its own;
+  - the company is named with its address (“MAGICBABY LTD, Unit 7 Brookfields Way, S63 5DL”), as many footers and contact pages do. Payment providers, couriers, lenders, accountants and solicitors named with their addresses are ignored.
+  - To apply this to leads already checked, use **Check the “to check” again** (Venicci is one of them).
+- **Websites open in Chrome.** In the installed app on Android, a business's website opens as a new Chrome tab instead of inside the app. In the browser, it opens a new tab as before.
+- **Menus answer at once.** Confirm likely matches, Check the “to check” again, Check everything again, and the rechecks in Settings close the menu the moment you tap and show a message with a spinner (“Checking 27 businesses again…”) until Apps Script answers. They used to wait for three answers in a row before closing; now the menu goes at once and the message stays only until the list has been refreshed. Any other button that waits on Apps Script shows a spinner and cannot be pressed twice.
+
 **Release 13 (Apps Script release 13).** Microsoft 365 gets its own count line and filter, each lead shows which other services its business uses, and the company check confirms more companies by itself.
 
 1. Paste the new `Code.gs` over the old one and save. You do not need to run `authorise` or `setup` again.
@@ -169,10 +187,11 @@ Each release bumps two markers together: `core.js?v=N` in `index.html` and the c
 | File | What it is |
 | --- | --- |
 | `index.html` | The whole interface |
-| `core.js` | Plain logic: dates, statuses, filters, CSV, the stand plan |
+| `core.js` | Plain logic: dates, statuses, filters, CSV, the lead lines and their bars |
 | `sw.js` | Offline support and instant updates |
 | `manifest.webmanifest` | Install to the home screen and receive shared pages |
 | `icon.svg`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon.png` | Icons |
+| `google.png`, `microsoft.png` | The Google and Microsoft tiles, cut from the images you supplied |
 | `apps-script/Code.gs`, `apps-script/appsscript.json` | The thin server: Sheet storage, Companies House, mail-record check, directory reading, notification emails |
 | `.github/workflows/pages.yml` | Publishes the site with GitHub Pages (set up once in the repo, not in this folder) |
 
@@ -189,7 +208,7 @@ Each release bumps two markers together: `core.js?v=N` in `index.html` and the c
 - Eight colour themes are in Settings: four dark (Harbour, Graphite, Forest, Aubergine) and four light (Porcelain, Stone, Sage, Sky). Harbour is the default. Every theme keeps its text at a readable contrast.
 - The **plus**, **pencil** and **download** icons beside a sector's name add an exhibition, rename the sector (changing all its exhibitions at once) and download its CSV. Choose a name that already exists to join two sectors together.
 - **Your leads** on the home, sector and exhibition screens lists one fact per line, including how many appear to use Google Workspace. Each line also gives its share of the exhibitors checked so far.
-- Three colours mean the same thing everywhere (the stand plan, the lines under it, the filter pills and the dots beside each exhibitor): green is *can email* (a confirmed limited company), amber is *to check* and rose is *consent needed*. An outlined square is not checked yet. The colours are tuned for each theme and kept apart in lightness as well as hue, so they still tell apart for colour-blind viewers.
+- Three colours mean the same thing everywhere (the “Can you email them?” bar, the lines under it, the filter pills and the dots beside each exhibitor): green is *can email* (a confirmed limited company), amber is *to check* and rose is *consent needed*. An outlined square is not checked yet. The colours are tuned for each theme and kept apart in lightness as well as hue, so they still tell apart for colour-blind viewers.
 - On an exhibition screen, the **download** icon beside the name saves the whole list as a CSV. To save only what a filter or search is showing, use the menu (the three dots).
 - The mail check looks at public MX records. "Probably Google" means Google sits behind a mail filter.
 - Apps Script cuts any run off at 6 minutes, so the work is done in short bursts: about 20 seconds at a time while the app is open, and up to 3 minutes every 10 minutes in the background. An exhibitor whose site is very slow has its extra pages skipped (the detail says so, and **Check again** retries), and one that is cut off twice is skipped.

@@ -14,7 +14,7 @@
 
 const VERSION = 1;
 // Which release of this code is live. The app shows it in Settings and warns when it is older than the app expects.
-const BUILD = 13;
+const BUILD = 14;
 const TZ = 'Europe/London';
 const UA = 'ExhibitorLeads/1 (personal prospecting tool; Google Apps Script)';
 const MAX_BODY = 600000;
@@ -750,6 +750,59 @@ function ownerStatements(text, keys) {
     if (!footer || MAKER_WORDS.test(x.name) || /[™®]/.test(before) || /(design|develop|built|website|site\s+by|hosting|seo|theme|template|photo|picture|image|illustrat|artwork|logo|music|font|character|powered\s+by|review)(?:(?!\.\s)[^|]){0,40}$/i.test(before)) return;
     add(x.name, 'copyright');
   });
+  return out;
+}
+
+// Words a stated company name can start with that are not part of it ("Venicci UK & Ireland MAGICBABY LTD" read as one).
+const LEAD_JUNK = /^(uk|gb|ireland|england|scotland|wales|europe|international|and|of|the|by|tel|phone|call|us|on|at)$/i;
+const GENERIC_CO = /^(group|holdings|trading|services|international|retail|products|enterprises|ventures|solutions|global|europe|uk|ireland|england|company|limited|brand|brands|london)$/;
+/**
+ * The company part of a stated name that the page ran together with the brand or a phone number before it:
+ * "Venicci UK & Ireland MAGICBABY LTD" gives "MAGICBABY LTD", "3872 MAGICBABY LTD" gives "MAGICBABY LTD".
+ * Only when something like that was trimmed, and what is left is a name of its own; otherwise ''.
+ */
+function coreName(stated, exName) {
+  const words = String(stated || '').trim().split(/\s+/);
+  const suffix = words.pop();
+  if (!words.length || !CO_SUFFIX.test(suffix)) return '';
+  const exWords = normKey(exName).split(' ').filter(Boolean);
+  let i = 0, trimmed = false;
+  while (i < words.length) {
+    const w = words[i], k = normKey(w);
+    if (!/[A-Za-z]/.test(w) || /^[+(]?\d/.test(w)) { i++; trimmed = true; continue; }   // a number or phone number
+    if (k && k.split(' ').every((x) => exWords.indexOf(x) >= 0)) { i++; trimmed = true; continue; }   // the brand's own name
+    if (!k || LEAD_JUNK.test(k)) { i++; continue; }   // UK, &, Ireland and the like between them
+    break;
+  }
+  const rest = words.slice(i);
+  if (!trimmed || !rest.length) return '';
+  const keys = normKey(rest.join(' ')).split(' ').filter(Boolean);
+  if (keys.some((k) => exWords.indexOf(k) >= 0) || !keys.some((k) => k.length >= 4 && !GENERIC_CO.test(k))) return '';
+  return rest.join(' ') + ' ' + suffix.replace(/[.,;:]+$/, '');
+}
+
+/**
+ * A company named together with its address, as sites do in the footer or on the contact page:
+ * "MAGICBABY LTD, Unit 7 Brookfields Way, S63 5DL Manvers Rotherham". A Ltd, Limited, LLP or PLC name followed within a
+ * couple of lines by a UK postcode. Not lenders, couriers, platforms, accountants or solicitors, and not template text.
+ */
+function addressedNames(text, exName) {
+  const t = String(text || ''), out = [], seen = Object.create(null);
+  const re = /(?:^|\s)(Ltd|LTD|Limited|LIMITED|LLP|PLC|Plc)\b[.,]?/g;
+  let m;
+  while ((m = re.exec(t)) && out.length < 3) {
+    const end = m.index + m[0].length;
+    const after = t.slice(end, end + 140);
+    if (NOT_AFTER_SUFFIX.test(after.trim()) || !extractPostcodes(after).length) continue;
+    const raw = nameBefore(t.slice(Math.max(0, end - 160), end));
+    const name = (raw && coreName(raw, exName)) || raw;
+    const around = t.slice(Math.max(0, m.index - 200), end + 200);
+    if (!name || NOT_OWNER.test(name) || PLACEHOLDER_NAME.test(name) || MAKER_WORDS.test(name) || FINANCE_NEAR.test(around)) continue;
+    if (/(accountan|chartered|solicitor|\blaw\b|legal|\btax\b)/i.test(name) || /(c\/o|care of)\s*$/i.test(t.slice(Math.max(0, end - name.length - 30), end - name.length))) continue;
+    const k = normKey(name);
+    if (!k || seen[k]) continue;
+    seen[k] = 1; out.push(name);
+  }
   return out;
 }
 
@@ -1626,7 +1679,7 @@ function enrichOne(ex, ctx) {
   const scan = (pg) => {
     const sc = scanPage(pg.body, pg.url);
     sc.names = legalNameStatements(sc.text, ex.name);
-    sc.owners = ownerStatements(sc.text, ownKeys(ex.name, siteName || sc.siteName, domain)).concat(sc.dataNames.map((n) => ({ name: n, kind: 'data' })));
+    sc.owners = ownerStatements(sc.text, ownKeys(ex.name, siteName || sc.siteName, domain)).concat(addressedNames(sc.text, ex.name).map((n) => ({ name: n, kind: 'address' })), sc.dataNames.map((n) => ({ name: n, kind: 'data' })));
     return sc;
   };
   const addPage = (sc) => {
@@ -1758,21 +1811,31 @@ function enrichOne(ex, ctx) {
       // Evidence, strongest first. Anything weaker than these leaves the lead as "to check" for you to decide.
       //  1. a company number on its own pages that the register has, under a name that fits
       if (cands.length) { co = verifyCandidates(cands, ex.name, say); if (co) { legal = 'verified'; how = 'Company number on its website'; } }
-      //  2. its pages name the company behind the site ("We are X Ltd") and the register holds exactly that name, once
+      //  2. its pages name the company behind the site ("We are X Ltd") and the register holds exactly that name, once.
+      //     A company name written on its own website is taken at its word: no postcode or address has to match.
+      //     When the page ran the brand into it ("Venicci UK & Ireland MAGICBABY LTD"), the company part is tried too.
+      const stated = (n) => {
+        let c = exactCompany(lookup(n), n), said = n;
+        const core = c ? '' : coreName(n, ex.name);
+        if (core) { c = exactCompany(lookup(core), core); said = core; }
+        return c ? { c, said } : null;
+      };
       if (!co) {
         for (let i = 0; i < names.length && i < 2 && !co; i++) {
-          const c = exactCompany(lookup(names[i]), names[i]);
-          if (c) { co = c; legal = 'verified'; how = 'Legal name on its website: ' + names[i]; }
+          const f = stated(names[i]);
+          if (f) { co = f.c; legal = 'verified'; how = 'Legal name on its website: ' + f.said; }
         }
       }
       //  2b. its pages name the company behind the brand ("a trading name of Y Ltd", "© 2026 Y Ltd", a legalName in its data),
       //      and the register holds exactly that name, once
-      const OWNER_HOW = { brand: 'Company behind the brand on its website: ', copyright: 'Copyright holder on its website: ', data: 'Legal name on its website (structured data): ' };
-      const own = owners.filter((o) => !names.some((n) => normKey(n) === normKey(o.name)));
+      const OWNER_HOW = { brand: 'Company behind the brand on its website: ', address: 'Legal name on its website: ', copyright: 'Copyright holder on its website: ', data: 'Legal name on its website (structured data): ' };
+      const RANK = { brand: 0, address: 1, data: 2, copyright: 3 };
+      const own = owners.filter((o) => !names.some((n) => normKey(n) === normKey(o.name) || normKey(coreName(n, ex.name)) === normKey(o.name)))
+        .sort((a, b) => RANK[a.kind] - RANK[b.kind]);
       if (!co) {
-        for (let i = 0; i < own.length && i < 2 && !co; i++) {
-          const c = exactCompany(lookup(own[i].name), own[i].name);
-          if (c) { co = c; legal = 'verified'; how = OWNER_HOW[own[i].kind] + own[i].name; }
+        for (let i = 0; i < own.length && i < 3 && !co; i++) {
+          const f = stated(own[i].name);
+          if (f) { co = f.c; legal = 'verified'; how = OWNER_HOW[own[i].kind] + f.said; }
         }
       }
       let conflict = false;

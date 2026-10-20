@@ -150,13 +150,40 @@ header { display: grid; grid-template-columns: 1fr auto; align-items: start; pad
 
 /* Hero */
 .hero { padding: 8px 0 22px; }
-.plan { display: block; width: min(100%, 320px); height: auto; margin: 8px auto 20px; overflow: visible; }
-.plan .hall { fill: var(--raise); stroke: var(--line-2); }
-.plan .c-c { fill: var(--st-ok); }
-.plan .c-k { fill: var(--st-check); }
-.plan .c-n { fill: var(--st-consent); }
-.plan .c-p { fill: none; stroke: var(--ink-3); stroke-width: 1.2; }
-.plan .c-e { fill: none; stroke: var(--line-2); stroke-width: 1.2; stroke-dasharray: 3 3; }
+/* The two bars at the top of each screen: "Can you email them?" and "Who runs their email?" */
+.lgroup { margin-top: 20px; max-width: 30em; }
+.lgroup-h { margin: 0 0 9px; font-size: 13.5px; font-weight: 500; color: var(--ink-2); letter-spacing: .01em; }
+.lbar { display: flex; gap: 3px; height: 14px; border-radius: 7px; overflow: hidden; }
+.lbar .seg { flex: 1 1 0; min-width: 4px; display: flex; align-items: center; }
+.lbar.email { height: 22px; border-radius: 6px; }
+.lbar.email .seg { padding-left: 5px; }
+.lbar .seg .logo { width: 13px; height: 13px; }
+.seg.corporate { background: var(--st-ok); }
+.seg.check { background: var(--st-check); }
+.seg.consent { background: var(--st-consent); }
+.seg.google { background: var(--prov-g); }
+.seg.microsoft { background: var(--prov-m); }
+.seg.other { background: var(--prov-o); }
+.seg.pending { background: repeating-linear-gradient(135deg, var(--line-2) 0 2px, transparent 2px 6px); box-shadow: inset 0 0 0 1px var(--line-2); }
+.lgroup .leads { margin-top: 8px; }
+.bars-empty { display: grid; gap: 12px; width: min(100%, 300px); margin: 8px auto 22px; }
+.bars-empty .lbar .seg { flex-grow: 1; }
+:root { --prov-g: var(--raise-2); --prov-m: var(--raise-2); --prov-o: var(--raise); }
+@supports (background: color-mix(in srgb, red, blue)) {
+  :root { --prov-g: color-mix(in srgb, var(--ink) 24%, var(--raise)); --prov-m: color-mix(in srgb, var(--ink) 15%, var(--raise)); --prov-o: color-mix(in srgb, var(--ink) 7%, var(--raise)); }
+}
+/* Google and Microsoft tiles */
+.logo { width: 16px; height: 16px; display: inline-block; vertical-align: -3px; flex: none; }
+.chip .logo { width: 15px; height: 15px; margin-right: 6px; vertical-align: -2px; }
+.ex-sub .logo, .tag .logo { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; }
+.kv .v .logo { margin-right: 6px; }
+/* Waiting on Apps Script: a spinner in the button or in the message at the bottom */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; margin-right: 9px; flex: none; }
+.btn.busy::after, .menu button.busy::after, .chip.busy::after { content: ''; display: inline-block; width: 13px; height: 13px; margin-left: 8px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; }
+.menu button { position: relative; }
+.menu button.busy::after { position: absolute; right: 4px; top: 50%; margin: -7px 0 0; }
+@media (prefers-reduced-motion: reduce) { .spinner, .btn.busy::after, .menu button.busy::after, .chip.busy::after { animation-duration: 2s; } }
 .title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .title-row > :first-child { flex: 1; min-width: 0; }
 .row-icons { display: flex; flex: none; margin: -9px -10px 0 0; }
@@ -308,8 +335,11 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 #searchBtn[aria-expanded="true"] .i-close { display: block; }
 #searchBtn[aria-expanded="true"] { color: var(--sun); }
 .leads { list-style: none; margin: 14px 0 0; padding: 0; max-width: 30em; font-size: 17px; font-weight: var(--thin); line-height: 1.4; color: var(--ink); }
-.leads li { padding: 6px 0; display: grid; grid-template-columns: 12px minmax(0, 1fr); column-gap: 12px; align-items: start; }
-.leads .lk { width: 12px; height: 12px; border-radius: 3px; margin-top: 6px; }
+.leads li { padding: 6px 0; display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 10px; align-items: start; }
+.leads .lk { width: 12px; height: 12px; border-radius: 3px; margin-top: 6px; justify-self: center; }
+.leads .lk.google, .leads .lk.microsoft { width: 16px; height: 16px; margin-top: 4px; border-radius: 0; }
+.leads .lk .logo { display: block; }
+.leads .lk.other { background: var(--prov-o); box-shadow: inset 0 0 0 1px var(--line-2); }
 .leads .lk.corporate { background: var(--st-ok); }
 .leads .lk.check { background: var(--st-check); }
 .leads .lk.consent { background: var(--st-consent); }
@@ -401,7 +431,7 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
 <div class="toast" id="toast" role="status" popover="manual"></div>
 
-<script src="core.js?v=13"></script>
+<script src="core.js?v=14"></script>
 <script>
 (() => {
 'use strict';
@@ -414,6 +444,7 @@ const UA = navigator.userAgent;
 const isIOS = /iP(hone|ad|od)/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isAndroid = /Android/.test(UA);
+
 
 /* ---------- Storage ---------- */
 const P = 'exl.';
@@ -460,6 +491,12 @@ const showById = (id) => S.shows.find((s) => s.id === id);
 const today = () => C.todayIso();
 
 let toastTimer, toastHide;
+/** A message at the bottom that stays, with a spinner, until toast() replaces it with the answer. */
+function busyToast(msg) {
+  toast(msg);
+  clearTimeout(toastTimer); clearTimeout(toastHide);
+  $('#toast').innerHTML = '<span class="spinner" aria-hidden="true"></span>' + esc(msg);
+}
 function toast(msg) {
   const t = $('#toast');
   t.textContent = msg;
@@ -534,7 +571,7 @@ function setUsage(u) {
 const oldScript = (e) => (/unknown action/i.test(e.message || '') ? 'Your Apps Script needs its new version first. The README says how (Update).' : e.message);
 
 // The release of Apps Script code this app expects. Shown in Settings; a warning appears when the script behind the app is older.
-const EXPECT_BUILD = 13;
+const EXPECT_BUILD = 14;
 
 async function checkBuild() {
   if (!S.api) return;
@@ -704,23 +741,19 @@ function renderMain() {
   if (r.v === 'show') updateShow();
 }
 
-/* ---------- Stand plan ---------- */
-function planSvg(c) {
-  const g = C.planGrid(c || {}, { width: 300 });
-  if (!g.cells.length) {
-    const cells = [];
-    for (let i = 0; i < 24; i++) cells.push(`<rect class="c-e" x="${(i % 8) * 36}" y="${Math.floor(i / 8) * 36}" width="30" height="30" rx="3"/>`);
-    return `<svg class="plan" viewBox="-8 -8 316 118" role="img" aria-label="An empty stand plan"><rect class="hall" x="-8" y="-8" width="316" height="118" rx="12"/>${cells.join('')}</svg>`;
-  }
-  const rx = Math.min(4, g.size / 4).toFixed(1);
-  const cells = g.cells.map((c2) => `<rect class="c-${c2.k}" x="${c2.x}" y="${c2.y}" width="${g.size}" height="${g.size}" rx="${rx}"/>`).join('');
-  return `<svg class="plan" viewBox="-8 -8 ${g.w + 16} ${g.h + 16}" role="img" aria-label="${esc(C.planLabel(c))}"><rect class="hall" x="-8" y="-8" width="${g.w + 16}" height="${g.h + 16}" rx="12"/>${cells}</svg>`;
-}
+/* ---------- Google and Microsoft tiles, and the two bars ---------- */
+const LOGO = {
+  google: '<img class="logo" src="google.png" alt="" width="16" height="16" decoding="async">',
+  microsoft: '<img class="logo" src="microsoft.png" alt="" width="16" height="16" decoding="async">',
+};
+const logo = (k) => LOGO[k] || '';
+/** Before there is anything to count: two empty bars, as a picture of what will come. */
+const barsEmpty = () => '<div class="bars-empty" aria-hidden="true"><div class="lbar"><i class="seg pending"></i></div><div class="lbar email"><i class="seg pending"></i></div></div>';
 
 /* ---------- Home ---------- */
 function homeHtml() {
   if (!S.api) {
-    return `<section class="hero">${planSvg(null)}
+    return `<section class="hero">${barsEmpty()}
       <h1 class="empty-title">Connect your sheet</h1>
       <p class="empty-body">Exhibitor Leads keeps everything in your own Google Sheet. Add the web app address and token once, and it is ready.</p>
       <div class="actions"><button class="btn primary" type="button" data-act="settings">Connect</button></div></section>`;
@@ -728,7 +761,7 @@ function homeHtml() {
   const t = totals(), sectors = C.sectorsFrom(S.shows);
   const has = S.shows.length > 0;
   const head = { n: String(S.shows.length), text: `${S.shows.length === 1 ? 'exhibition' : 'exhibitions'} in ${C.plural(sectors.length, 'sector')}` };
-  return `<section class="hero" id="homeHero">${planSvg(t.total ? t : null)}
+  return `<section class="hero" id="homeHero">${t.total ? '' : barsEmpty()}
       <h1 class="empty-title">${has ? 'Your leads' : 'Who are you selling to?'}</h1>
       ${has ? leadsHtml(head, t, 'No exhibitors loaded yet.') : `<p class="empty-body">Tap the search icon, or the button below, and choose a sector such as baby, whisky or crafts. You get searches to find the shows, then Exhibitor Leads reads each exhibitor list for you.</p>
       <div class="actions"><button class="btn primary" type="button" data-act="open-search">Find shows</button></div>`}
@@ -736,12 +769,20 @@ function homeHtml() {
     ${sectors.length ? `<h2 class="section-title">Your sectors</h2>${sectors.map(sectorRow).join('')}` : ''}`;
 }
 
-/** "Your leads" with one fact to a line. Falls back to a sentence while there is nothing to count. */
+/**
+ * "Your leads": the counts, then two groups, each a bar with its own lines underneath in the same colours and order:
+ * "Can you email them?" and "Who runs their email?". Falls back to a sentence while there is nothing to count.
+ */
 function leadsHtml(head, c, fallback) {
-  const li = (l) => `<li><i class="lk${l.k ? ' ' + l.k : ''}" aria-hidden="true"></i><span>${l.n ? `<strong class="num">${esc(l.n)}</strong>${l.pct ? ` <span class="pct">(${esc(l.pct)})</span>` : ''} ` : ''}${esc(l.text)}</span></li>`;
-  const lines = C.leadLines(c);
-  if (!lines && !head) return `<p class="story">${esc(fallback)}</p>`;
-  return `<ul class="leads">${head ? li(head) : ''}${lines ? lines.map(li).join('') : li({ n: '', text: fallback })}</ul>`;
+  const li = (l) => `<li><i class="lk${l.k ? ' ' + l.k : ''}" aria-hidden="true">${logo(l.k)}</i><span>${l.n ? `<strong class="num">${esc(l.n)}</strong>${l.pct ? ` <span class="pct">(${esc(l.pct)})</span>` : ''} ` : ''}${esc(l.text)}</span></li>`;
+  const g = C.leadGroups(c);
+  if (!g && !head) return `<p class="story">${esc(fallback)}</p>`;
+  const total = g ? g.status.bar.reduce((a, x) => a + x.n, 0) : 0;
+  const group = (title, kind, grp) => `<div class="lgroup ${kind}"><h3 class="lgroup-h">${title}</h3>
+    <div class="lbar ${kind}" role="img" aria-label="${esc(C.barLabel(title.replace(/\?$/, ''), grp.bar))}">${grp.bar.map((x) => `<i class="seg ${x.k}" style="flex-grow:${x.n}">${kind === 'email' && x.n / total >= 0.07 ? logo(x.k) : ''}</i>`).join('')}</div>
+    <ul class="leads">${grp.lines.map(li).join('')}</ul></div>`;
+  return `<ul class="leads">${head ? li(head) : ''}${g ? li(g.head) : li({ n: '', text: fallback })}</ul>`
+    + (g ? group('Can you email them?', 'status', g.status) + (g.email ? group('Who runs their email?', 'email', g.email) : '') : '');
 }
 
 function sectorRow(s) {
@@ -758,7 +799,7 @@ function sectorHtml(sector) {
   shows.forEach((s) => { const c = s.counts || {}; Object.keys(t).forEach((k) => { t[k] += c[k] || 0; }); });
   const links = C.searchLinks(sector);
   const groups = C.groupShows(shows, today());
-  return `<section class="hero">${planSvg(t.total ? t : null)}
+  return `<section class="hero">${t.total ? '' : barsEmpty()}
       <div class="title-row"><h1 class="sat-name">${esc(sector)}</h1>
         <div class="row-icons">
           <button class="ico-btn main" type="button" data-act="add-show" aria-label="Add exhibition" title="Add exhibition">${ICON.plus}</button>
@@ -812,13 +853,13 @@ function updateShow() {
   const group = C.GROUPS.find((g) => g.id === C.showGroup(s, today()));
   const running = E.running && E.showId === s.id;
   const pct = c.total ? Math.round(100 * c.done / c.total) : 0;
-  const progress = c.pending ? `<div class="progress"><div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Checking exhibitors"><i style="width:${pct}%"></i></div>
-      <p class="num">${running ? 'Checking' : 'Paused at'} ${c.done} of ${c.total}. ${running ? 'Keep this open, or leave it: the checks carry on in the background.' : 'Tap Keep checking to carry on.'}</p></div>` : '';
+  const progress = c.pending ? `<div class="progress" role="status" aria-label="Checking exhibitors, ${pct}% done">
+      <p class="num">${running ? '<span class="spinner" aria-hidden="true"></span>Checking now. Keep this open, or leave it: the checks carry on in the background.' : `Paused at ${c.done} of ${c.total}. Tap Keep checking to carry on.`}</p></div>` : '';
   const actions = showActions(s, c);
   const key = [s.id, s.name, s.start, s.end, c.total, c.done, c.corporate, c.check, c.consent, c.google, c.microsoft, running, s.status, s.statusNote, s.urls.length].join('|');
   if (hero.dataset.key !== key) {
     hero.dataset.key = key;
-    hero.innerHTML = `${planSvg(c.total ? c : null)}
+    hero.innerHTML = `${c.total ? '' : barsEmpty()}
       <div class="title-row"><div><h1 class="sat-name">${esc(s.name)}</h1><p class="when num">${esc(group.id === 'undated' ? 'Dates not set' : `${C.fmtDates(s.start, s.end)}, ${group.label.toLowerCase()}`)}</p></div>
       <div class="row-icons">${c.total ? `<button class="ico-btn" type="button" data-act="csv" aria-label="Download CSV" title="Download CSV">${ICON.down}</button>` : ''}<button class="ico-btn" type="button" data-act="show-menu" aria-label="Exhibition options" title="Exhibition options">${ICON.more}</button></div></div>
       ${leadsHtml(null, c, C.summary(c, s))}${progress}
@@ -832,7 +873,7 @@ function updateShow() {
       <form class="quiet-search" id="searchForm" role="search"><input class="field" id="q" type="search" placeholder="Search this list" autocomplete="off" enterkeyhint="search" aria-label="Search this list" value="${esc(S.q)}"></form>`;
   }
   $('#chipRow').innerHTML = C.FILTERS.filter((x) => x.id === 'all' || x.id === S.filter || C.filterCount(c, x.id) > 0)
-    .map((x) => `<button class="chip${x.id === 'corporate' ? ' st st-ok' : x.id === 'check' ? ' st st-check' : x.id === 'consent' ? ' st st-consent' : ''}" type="button" data-filter="${x.id}" aria-pressed="${S.filter === x.id}">${esc(x.label)} <span class="n num">${C.filterCount(c, x.id)}</span></button>`).join('');
+    .map((x) => `<button class="chip${x.id === 'corporate' ? ' st st-ok' : x.id === 'check' ? ' st st-check' : x.id === 'consent' ? ' st st-consent' : ''}" type="button" data-filter="${x.id}" aria-pressed="${S.filter === x.id}">${logo(x.id)}${esc(x.label)} <span class="n num">${C.filterCount(c, x.id)}</span></button>`).join('');
   const list = C.filterRows(rows, { filter: S.filter, q: S.q });
   const shown = list.slice(0, S.limit);
   $('#showRows').innerHTML = (shown.length ? shown.map(rowHtml).join('') : `<p class="empty-list">No exhibitors match. Clear the search or choose All.</p>`)
@@ -845,7 +886,7 @@ function rowHtml(r) {
   const n = C.listedCount(r);
   const badge = n >= 2 ? `<span class="ex-badge" role="img" aria-label="In ${n} exhibitions" title="In ${n} exhibitions">${ICON.stack}${n}</span>` : '';
   return `<div class="ex"><button class="ex-main${badge ? ' has-badge' : ''}" type="button" data-row="${esc(r.id)}"><span class="dot ${st}"></span>
-    <span class="ex-t"><span class="ex-name">${esc(r.name)}</span><span class="ex-sub">${esc(C.rowSub(r))}</span>${who ? `<span class="ex-sub dim">${esc(who)}</span>` : ''}</span>${badge}${ICON.chev}</button></div>`;
+    <span class="ex-t"><span class="ex-name">${esc(r.name)}</span><span class="ex-sub">${C.rowParts(r).map((b) => logo(b.logo) + esc(b.text)).join(', ')}</span>${who ? `<span class="ex-sub dim">${esc(who)}</span>` : ''}</span>${badge}${ICON.chev}</button></div>`;
 }
 
 /* ---------- Sheets ---------- */
@@ -885,20 +926,20 @@ function openRow(id) {
   const others = (r.alsoIn || []).map(showById).filter(Boolean), listed = C.listedCount(r);
   const alsoIn = others.length ? `<div class="kv"><span class="k">Also in</span>${others.map((o) => `<span class="v">${esc(o.name)}</span><span class="s">${esc([o.start ? C.fmtDates(o.start, o.end) : '', o.sector].filter(Boolean).join(' · '))}</span>`).join('')}</div>` : '';
   openSheet(`${head(r.name)}
-    <span class="tag ${st}">${esc(C.STATUS_LABEL[st])}</span>${done ? `<span class="tag">${esc(C.workspaceShort(r))}</span>` : ''}${listed >= 2 ? `<span class="tag">In ${listed} exhibitions</span>` : ''}
+    <span class="tag ${st}">${esc(C.STATUS_LABEL[st])}</span>${done ? `<span class="tag">${logo(C.providerOf(r))}${esc(C.workspaceShort(r))}</span>` : ''}${listed >= 2 ? `<span class="tag">In ${listed} exhibitions</span>` : ''}
     <p>${esc(C.emailRule(r))}</p>
     ${needsAnswer ? `<div class="actions" style="margin-top:10px"><button class="btn primary" type="button" data-act="match-yes" data-id="${esc(r.id)}">Yes, same company</button><button class="btn" type="button" data-act="match-no" data-id="${esc(r.id)}">No, a different one</button></div>` : ''}
     <h3>Contact</h3>
     ${kv('Email', r.email ? link('mailto:' + r.email, r.email) : '', emailSub)}
     ${kv('Phone', r.phone ? link('tel:' + r.phone.replace(/\s+/g, ''), r.phone) : '', r.phone && r.phoneSrc ? `From ${r.phoneSrc}` : '')}
     ${kv('Contact name', esc(r.contact), contactSrc)}
-    ${kv('Website', r.website ? link(r.website, r.website.replace(/^https?:\/\//, '')) : '')}
+    ${kv('Website', r.website ? link(r.website, r.website.replace(/^https?:\/\//, '')).replace('<a ', '<a data-chrome="1" ') : '')}
     ${!r.email && !r.phone && !r.contact && !r.website ? '<p class="small">Nothing found yet. Edit the details to add what you know.</p>' : ''}
     <h3>Company</h3>
     ${company}
     <div class="actions" style="margin-top:10px"><button class="btn" type="button" data-act="find-co" data-id="${esc(r.id)}">Find on Companies House</button><button class="btn" type="button" data-act="company-no" data-id="${esc(r.id)}">Enter company number</button></div>
     <h3>Email setup</h3>
-    ${kv('Provider', esc(C.workspaceLabel(r)))}
+    ${kv('Provider', logo(C.providerOf(r)) + esc(C.workspaceLabel(r)))}
     ${done ? kv('Also uses', esc(r.alsoUses), 'From its domain records. Not finding a service does not mean they do not use it.') : ''}
     <h3>At the show</h3>
     ${kv('Exhibition', esc(s.name || ''), s.start ? C.fmtDates(s.start, s.end) : '')}
@@ -1316,14 +1357,25 @@ async function downloadSector(sector) {
 }
 
 /* ---------- Actions ---------- */
+/** While Apps Script works: the button shows a spinner and cannot be pressed twice. */
 async function withBusy(btn, fn) {
-  if (btn) btn.disabled = true;
-  try { return await fn(); } finally { if (btn) btn.disabled = false; }
+  if (btn) { btn.disabled = true; btn.classList.add('busy'); btn.setAttribute('aria-busy', 'true'); }
+  try { return await fn(); } finally { if (btn) { btn.disabled = false; btn.classList.remove('busy'); btn.removeAttribute('aria-busy'); } }
+}
+
+/**
+ * A menu action that asks Apps Script to do something: the menu closes at once and a message with a spinner says what is
+ * happening, the answer replaces it, and the lists refresh afterwards without holding anything up.
+ */
+async function runFromMenu(working, fn) {
+  closeSheet();
+  busyToast(working);
+  try { await fn(); } catch (e) { toast(oldScript(e)); }
 }
 
 async function loadList(s, btn) {
   await withBusy(btn, async () => {
-    toast('Reading the exhibitor list…');
+    busyToast('Reading the exhibitor list…');
     try {
       const r = await call('loadShow', { id: s.id }, 90000);
       await refreshShows();
@@ -1429,37 +1481,42 @@ async function act(name, t) {
       break;
     }
     case 'confirm-likely': if (s) {
-      await withBusy(t, async () => {
-        try { const j = await call('confirmLikely', { showId: s.id }); mergeRows(s.id, j.changed); closeSheet(); updateShow(); toast(`${C.plural((j.changed || []).length, 'match', 'matches')} confirmed`); }
-        catch (e) { toast(e.message); }
+      const n = C.countRows(S.rows[s.id] || []).likely;
+      await runFromMenu(`Confirming ${C.plural(n, 'likely match', 'likely matches')}…`, async () => {
+        const j = await call('confirmLikely', { showId: s.id });
+        mergeRows(s.id, j.changed); updateShow(); toast(`${C.plural((j.changed || []).length, 'match', 'matches')} confirmed`);
+        refreshStatus().catch(() => {});
       });
     } break;
     case 'recheck-weak': if (s) {
-      await withBusy(t, async () => {
-        try {
-          const j = await call('recheckWeak', { showId: s.id });
-          await fetchRows(s.id); await refreshStatus(); closeSheet(); E.userPaused = false; updateShow(); ensureChecking();
-          toast(j.queued ? `Checking ${C.plural(j.queued, 'business', 'businesses')} again` : 'Nothing to check again');
-        } catch (e) { toast(oldScript(e)); }
+      const n = C.countRows(S.rows[s.id] || []).check;
+      await runFromMenu(`Checking ${C.plural(n, 'business', 'businesses')} again…`, async () => {
+        const j = await call('recheckWeak', { showId: s.id });
+        await fetchRows(s.id);   // the spinner stays until the list shows them waiting again
+        E.userPaused = false; updateShow(); ensureChecking();
+        toast(j.queued ? `Checking ${C.plural(j.queued, 'business', 'businesses')} again` : 'Nothing to check again');
+        refreshStatus().catch(() => {});
       });
     } break;
     case 'recheck-weak-all': case 'recheck-weak-consent-yes': {
-      await withBusy(t, async () => {
-        try {
-          const j = await call('recheckWeak', name === 'recheck-weak-all' ? {} : { include: 'all' });
-          await refreshShows(); await refreshStatus();
-          if (S.route.v === 'show') await fetchRows(S.route.showId);
-          closeSheet(); E.userPaused = false; if (S.route.v === 'show') { updateShow(); ensureChecking(); }
-          toast(j.queued ? `Checking ${C.plural(j.queued, 'business', 'businesses')} again. Open an exhibition to watch it` : 'Nothing to check again');
-        } catch (e) { toast(oldScript(e)); }
+      await runFromMenu(name === 'recheck-weak-all' ? 'Putting the “to check” ones back in the queue…' : 'Putting “to check” and “consent needed” back in the queue…', async () => {
+        const j = await call('recheckWeak', name === 'recheck-weak-all' ? {} : { include: 'all' });
+        if (S.route.v === 'show') await fetchRows(S.route.showId); else await refreshShows();   // the spinner stays until the screen shows the change
+        E.userPaused = false;
+        if (S.route.v === 'show') { updateShow(); ensureChecking(); } else renderMain();
+        toast(j.queued ? `Checking ${C.plural(j.queued, 'business', 'businesses')} again. Open an exhibition to watch it` : 'Nothing to check again');
+        Promise.all([S.route.v === 'show' ? refreshShows() : null, refreshStatus()]).catch(() => {});
       });
       break;
     }
     case 'recheck-weak-consent': openConfirm('Include “consent needed” too?', 'These are mostly sole traders and businesses with no company on the register, so rechecking them rarely changes anything. It does use a lot of web requests. Businesses you confirmed are kept.', 'recheck-weak-consent-yes', 'Check them again'); break;
     case 'recheck-all': if (s) {
-      await withBusy(t, async () => {
-        try { const ids = (S.rows[s.id] || []).map((r) => r.id); await call('recheck', { ids }); await fetchRows(s.id); closeSheet(); E.userPaused = false; updateShow(); ensureChecking(); toast('Checking everything again'); }
-        catch (e) { toast(e.message); }
+      const ids = (S.rows[s.id] || []).map((r) => r.id);
+      await runFromMenu(`Checking all ${C.plural(ids.length, 'business', 'businesses')} again…`, async () => {
+        await call('recheck', { ids });
+        await fetchRows(s.id);
+        E.userPaused = false; updateShow(); ensureChecking();
+        toast('Checking everything again');
       });
     } break;
     case 'match-yes': case 'match-no': {
@@ -1558,6 +1615,7 @@ document.addEventListener('click', (e) => {
   const t = e.target.closest('button, a');
   if (!t) return;
   const d = t.dataset;
+  if (d.chrome && isAndroid && standalone && /^https?:/.test(t.href)) { e.preventDefault(); location.href = C.chromeIntent(t.href); return; }
   if (d.theme) { setTheme(d.theme); return; }
   if (d.dismiss) { const x = get('dismissed', {}); x[d.dismiss] = 1; put('dismissed', x); renderNotices(); return; }
   if (d.sector) { closeFind(); go({ v: 'sector', sector: C.matchSector(d.sector, S.shows) }); return; }

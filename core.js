@@ -111,11 +111,14 @@
     return c;
   }
 
+  /** Who runs its email, for the Google and Microsoft tiles: 'google', 'microsoft' or ''. */
+  const providerOf = (row) => (isGoogle(row) ? 'google' : isMicrosoft(row) ? 'microsoft' : '');
+
   function workspaceShort(row) {
     if (statusOf(row) === 'pending') return '';
-    if (isMicrosoft(row)) return /behind/.test(row.mailHost) ? 'Probably Microsoft 365' : 'Microsoft 365';
+    if (isMicrosoft(row)) return /behind/.test(row.mailHost) ? 'Probably Microsoft' : 'Microsoft';
     if (row.mailHost === 'Apple iCloud') return 'Apple iCloud';
-    return row.workspace === 'yes' ? 'Google Workspace' : row.workspace === 'likely' ? 'Probably Google' : row.workspace === 'no' ? 'Not Google' : 'Mail not known';
+    return row.workspace === 'yes' ? 'Google' : row.workspace === 'likely' ? 'Probably Google' : row.workspace === 'no' ? 'Other email' : 'Mail not known';
   }
 
   function workspaceLabel(row) {
@@ -129,12 +132,14 @@
     return 'Could not tell' + host;
   }
 
-  function rowSub(row) {
-    const st = statusOf(row), bits = [STATUS_LABEL[st]];
-    if (st !== 'pending') bits.push(workspaceShort(row));
-    if (row.stand) bits.push(`Stand ${row.stand}`);
-    return bits.join(', ');
+  /** The parts of a lead's second line, each { text, logo }: "Can email", "Google" (with its tile), "Stand E23". */
+  function rowParts(row) {
+    const st = statusOf(row), bits = [{ text: STATUS_LABEL[st], logo: '' }];
+    if (st !== 'pending') bits.push({ text: workspaceShort(row), logo: providerOf(row) });
+    if (row.stand) bits.push({ text: `Stand ${row.stand}`, logo: '' });
+    return bits;
   }
+  function rowSub(row) { return rowParts(row).map((b) => b.text).join(', '); }
 
   const TYPE_LABEL = {
     ltd: 'Private limited company', plc: 'Public limited company', llp: 'Limited liability partnership',
@@ -190,8 +195,8 @@
     { id: 'corporate', label: 'Can email' },
     { id: 'check', label: 'To check' },
     { id: 'consent', label: 'Consent needed' },
-    { id: 'google', label: 'Google Workspace' },
-    { id: 'microsoft', label: 'Microsoft 365' },
+    { id: 'google', label: 'Google' },
+    { id: 'microsoft', label: 'Microsoft' },
     { id: 'unread', label: 'Couldn\u2019t read' },
   ];
 
@@ -231,8 +236,8 @@
     if (c.consent) parts.push(`${c.consent} ${c.consent === 1 ? 'needs' : 'need'} consent`);
     if (c.check) parts.push(`${c.check} ${c.check === 1 ? 'needs' : 'need'} a quick check`);
     if (parts.length) s += ` ${parts.join(' and ')}.`;
-    if (c.google) s += ` ${c.google} ${c.google === 1 ? 'appears' : 'appear'} to use Google Workspace.`;
-    if (c.microsoft) s += ` ${c.microsoft} ${c.microsoft === 1 ? 'appears' : 'appear'} to use Microsoft 365.`;
+    if (c.google) s += ` ${c.google} ${c.google === 1 ? 'uses' : 'use'} Google for email.`;
+    if (c.microsoft) s += ` ${c.microsoft} ${c.microsoft === 1 ? 'uses' : 'use'} Microsoft for email.`;
     return s;
   }
 
@@ -347,37 +352,6 @@
     return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, max || 40) || 'list';
   }
 
-  /* ---------- Hero: the stand plan ---------- */
-
-  /**
-   * One cell per exhibitor, laid out like a hall plan. Best prospects first, so the bright cells gather at the top.
-   * Big lists are scaled down to at most `cap` cells, keeping the proportions.
-   */
-  function planGrid(c, opts) {
-    const cap = (opts && opts.cap) || 300, width = (opts && opts.width) || 300, gap = 3;
-    const total = (c && c.total) || 0;
-    if (!total) return { w: width, h: 0, cells: [], total: 0, scaled: false };
-    const raw = [['c', c.corporate || 0], ['k', c.check || 0], ['n', c.consent || 0], ['p', c.pending || 0]];
-    const k = total > cap ? cap / total : 1;
-    let kinds = raw.map(([id, n]) => [id, n ? Math.max(1, Math.round(n * k)) : 0]);
-    let n = kinds.reduce((s, x) => s + x[1], 0);
-    // rounding can overshoot a little: trim from the biggest group
-    while (n > cap) { kinds.sort((a, b) => b[1] - a[1]); kinds[0][1]--; n--; }
-    const order = { c: 0, k: 1, n: 2, p: 3 };
-    kinds.sort((a, b) => order[a[0]] - order[b[0]]);
-    const cols = n <= 6 ? Math.max(1, n) : Math.min(24, Math.max(4, Math.ceil(Math.sqrt(n * 2))));
-    const size = Math.min(48, Math.floor((width - gap * (cols - 1)) / cols));
-    const cells = [];
-    kinds.forEach(([id, count]) => { for (let i = 0; i < count; i++) cells.push(id); });
-    const out = cells.map((id, i) => ({ k: id, x: (i % cols) * (size + gap), y: Math.floor(i / cols) * (size + gap) }));
-    const rows = Math.ceil(n / cols);
-    return { w: cols * size + (cols - 1) * gap, h: rows * size + (rows - 1) * gap, size, cols, cells: out, total, shown: n, scaled: k < 1 };
-  }
-
-  function planLabel(c) {
-    return `Stand plan with one square per exhibitor: ${c.corporate || 0} can be emailed, ${c.check || 0} to check, ${c.consent || 0} need consent, ${c.pending || 0} not checked yet`;
-  }
-
   /* ---------- CSV ---------- */
 
   const CSV_COLUMNS = ['Business', 'Website', 'Contact name', 'Contact source', 'Email', 'Email type', 'Phone', 'Can email without consent',
@@ -438,25 +412,44 @@
   }
 
   /**
-   * "Your leads" as one short line per fact, so it can be scanned. Each line is { n, text }.
+   * "Your leads" as one short line per fact, in two groups, each with the bar drawn above its lines:
+   *   status: can be emailed, need a quick check, need consent
+   *   email:  Google, Microsoft, other or not known (once anything has been checked)
+   * A line is { n, text, k, pct }. Percentages are of the exhibitors checked so far, so each group's add up to 100.
+   * A bar segment is { k, n }: its width is a share of every exhibitor, so while checks run the part not checked yet
+   * stays empty, and the coloured parts keep the same proportions as the percentages in the lines.
    * Returns null while there are no exhibitors to count.
    */
-  function leadLines(c) {
+  function leadGroups(c) {
     if (!c || !c.total) return null;
-    const out = [];
-    // a share of the exhibitors checked so far, which is all of them once the checks are done
-    const base = c.done || 0;
-    const [pCorp, pCheck, pConsent] = shares([c.corporate || 0, c.check || 0, c.consent || 0], base);
-    const [pGoogle, pMicrosoft] = shares([c.google || 0, c.microsoft || 0], base);
-    out.push(c.pending ? { n: `${commas(c.done)} of ${commas(c.total)}`, text: 'exhibitors checked so far' } : { n: commas(c.total), text: c.total === 1 ? 'exhibitor, checked' : 'exhibitors, all checked' });
-    // `k` ties a line to its colour in the stand plan; the order matches the plan (can email, check, consent)
-    out.push({ n: commas(c.corporate || 0), text: 'can be emailed without asking first', k: 'corporate', pct: pCorp });
-    if (c.check) out.push({ n: commas(c.check), text: c.check === 1 ? 'needs a quick check' : 'need a quick check', k: 'check', pct: pCheck });
-    if (c.consent) out.push({ n: commas(c.consent), text: c.consent === 1 ? 'needs consent' : 'need consent', k: 'consent', pct: pConsent });
-    if (c.done) out.push({ n: commas(c.google || 0), text: c.google === 1 ? 'appears to use Google Workspace' : 'appear to use Google Workspace', pct: pGoogle });
-    if (c.done) out.push({ n: commas(c.microsoft || 0), text: c.microsoft === 1 ? 'appears to use Microsoft 365' : 'appear to use Microsoft 365', pct: pMicrosoft });
+    const base = c.done || 0, pending = c.pending || 0;
+    const corp = c.corporate || 0, check = c.check || 0, consent = c.consent || 0;
+    const [pCorp, pCheck, pConsent] = shares([corp, check, consent], base);
+    const head = pending ? { n: `${commas(c.done)} of ${commas(c.total)}`, text: 'exhibitors checked so far' } : { n: commas(c.total), text: c.total === 1 ? 'exhibitor, checked' : 'exhibitors, all checked' };
+    // `k` ties a line to its colour in the bar; the order matches the bar (can email, check, consent)
+    const status = [{ n: commas(corp), text: 'can be emailed without asking first', k: 'corporate', pct: pCorp }];
+    if (check) status.push({ n: commas(check), text: check === 1 ? 'needs a quick check' : 'need a quick check', k: 'check', pct: pCheck });
+    if (consent) status.push({ n: commas(consent), text: consent === 1 ? 'needs consent' : 'need consent', k: 'consent', pct: pConsent });
+    const seg = (k, n) => ({ k, n });
+    const out = { head, status: { lines: status, bar: [seg('corporate', corp), seg('check', check), seg('consent', consent), seg('pending', pending)].filter((x) => x.n > 0) }, email: null };
+    if (base) {
+      const g = c.google || 0, m = c.microsoft || 0, o = Math.max(0, base - g - m);
+      const [pG, pM, pO] = shares([g, m, o], base);
+      out.email = {
+        lines: [
+          { n: commas(g), text: g === 1 ? 'uses Google for email' : 'use Google for email', k: 'google', pct: pG },
+          { n: commas(m), text: m === 1 ? 'uses Microsoft for email' : 'use Microsoft for email', k: 'microsoft', pct: pM },
+          { n: commas(o), text: 'other or not known', k: 'other', pct: pO },
+        ],
+        bar: [seg('google', g), seg('microsoft', m), seg('other', o), seg('pending', pending)].filter((x) => x.n > 0),
+      };
+    }
     return out;
   }
+
+  const BAR_WORDS = { corporate: 'can be emailed without asking first', check: 'need a quick check', consent: 'need consent', google: 'use Google', microsoft: 'use Microsoft', other: 'other or not known', pending: 'not checked yet' };
+  /** What a bar shows, in words, for screen readers. */
+  function barLabel(title, bar) { return title + ': ' + bar.map((x) => `${commas(x.n)} ${BAR_WORDS[x.k]}`).join(', '); }
 
   /**
    * Whole-number percentages of `base`. When the values together make up the whole base (can email, check and consent do),
@@ -472,6 +465,17 @@
       raw.map((x, i) => ({ i, f: x - Math.floor(x) })).sort((a, b) => b.f - a.f || a.i - b.i).forEach((o) => { if (left > 0 && values[o.i] > 0) { out[o.i]++; left--; } });
     }
     return values.map((v, i) => (v > 0 && out[i] === 0 ? '<1%' : out[i] + '%'));
+  }
+
+  /**
+   * In the installed app on Android a link with target=_blank opens inside the app (Chrome's in-app view). A business's website
+   * should open as a new tab in Chrome itself, so the app asks Android for Chrome with an intent link; if Chrome is not there,
+   * the fallback address opens the usual way.
+   */
+  function chromeIntent(url) {
+    const m = /^(https?):\/\/([^\/?#]+)([^#]*)(#.*)?$/i.exec(String(url || ''));
+    if (!m) return '';
+    return `intent://${m[2]}${m[3] || '/'}#Intent;scheme=${m[1].toLowerCase()};package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url)};end`;
   }
 
   /** A random notification code for ntfy: a prefix and 18 letters and digits. `rand(n)` gives n random bytes. */
@@ -613,11 +617,11 @@
 
   return {
     esc, plural, dayNum, todayIso, GROUPS, showGroup, groupShows, fmtDates, ago,
-    STATUS_LABEL, statusOf, isGoogle, isMicrosoft, countRows, workspaceShort, workspaceLabel, rowSub, companyTypeLabel, companyUrl, legalLabel, emailRule, emailKindLabel,
+    STATUS_LABEL, statusOf, isGoogle, isMicrosoft, providerOf, countRows, workspaceShort, workspaceLabel, rowSub, rowParts, companyTypeLabel, companyUrl, legalLabel, emailRule, emailKindLabel,
     FILTERS, filterRows, filterCount, summary, isUnread, shares, listedIn, listedCount, reachSummary, makeTopic, showFromHash,
     SECTOR_PRESETS, cleanSector, matchSector, sectorsFrom, searchLinks,
-    validUrl, parseShared, validApiUrl, slug, planGrid, planLabel,
-    CSV_COLUMNS, csvCell, toCsv, mergeBySite, usage, sectorOptions, resolveSector, leadLines,
-    evidenceRows, speedLines, recheckSummary, explainText, scriptOutdated,
+    validUrl, parseShared, validApiUrl, slug,
+    CSV_COLUMNS, csvCell, toCsv, mergeBySite, usage, sectorOptions, resolveSector, leadGroups, barLabel,
+    evidenceRows, speedLines, recheckSummary, explainText, scriptOutdated, chromeIntent,
   };
 });
