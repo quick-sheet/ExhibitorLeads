@@ -57,6 +57,17 @@ This is a guide, not legal advice.
 2. Open the **Actions** tab and wait for **Deploy to Pages** to show a green tick (usually under a minute). Opening `sw.js` on the live address should show the new `exhibitorleads-vN` name.
 3. Fully close the app and reopen it. If it still looks the same, close and reopen once more.
 
+**Release 15 (app only; the Apps Script stays at release 14).** The home and sector screens check leads themselves, and say how many are waiting and roughly how long they will take.
+
+1. Nothing to do in Apps Script. Settings keeps saying **Apps Script release: 14, up to date**.
+2. Upload `index.html`, `core.js`, `sw.js` and `README.md`, and commit. Wait for the green tick in **Actions**, then fully close and reopen the app.
+
+What release 15 changes:
+
+- **No more frozen figures after a recheck from Settings.** Until now only an open exhibition checked leads in the app; the home and sector screens left them to the background run (about 3 minutes in every 10) and did not refresh their counts, so a big recheck looked stuck. Now, while either screen is open and leads are waiting, the app checks them itself: any exhibition from the home screen, that sector's exhibitions from a sector screen. The counts and both bars move as it goes.
+- **A line under the bars** while leads are waiting: “Checking now: 519 waiting, about 40 minutes. Keep this open, or leave it: the checks carry on in the background.” The estimate comes from the average time per business in Settings (Speed). With **Pause checking** it says how long the background run alone would take, and **Keep checking** starts again. The exhibition screen shows the same line.
+- Moving between the home screen, a sector and an exhibition carries the checking on in the new place. Paused or not, the home and sector screens refresh their counts every minute while anything is waiting.
+
 **Release 14 (Apps Script release 14).** Two bars replace the stand plan, Google and Microsoft get their tiles, menus answer the moment you tap, a company name written on a business's own website is taken at its word, and websites open in Chrome from the installed app.
 
 1. Paste the new `Code.gs` over the old one and save. You do not need to run `authorise` or `setup` again.

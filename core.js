@@ -468,6 +468,33 @@
   }
 
   /**
+   * Roughly how long the leads still waiting will take, from the average time per business (Settings, Speed).
+   * With the app open it checks continuously; left alone, the background run checks for about 3 minutes in every 10.
+   * '' when there is no average yet.
+   */
+  function waitTime(pending, perBusiness, inApp) {
+    const per = +perBusiness;
+    if (!(pending > 0) || !(per > 0)) return '';
+    const min = (pending * per * (inApp ? 1.1 : 600 / 180)) / 60;
+    if (min < 1) return 'under a minute';
+    if (min < 10) return `about ${Math.round(min)} ${Math.round(min) === 1 ? 'minute' : 'minutes'}`;
+    if (min < 90) return `about ${Math.round(min / 5) * 5} minutes`;
+    const h = Math.round(min / 30) / 2;
+    return `about ${String(h).replace('.5', '½')} hours`;
+  }
+
+  /** The line under the bars while leads are waiting: "Checking now: 519 waiting, about 35 minutes. …" */
+  function waitingLine(pending, perBusiness, running, where) {
+    const n = `${commas(pending)} waiting`;
+    if (running) {
+      const t = waitTime(pending, perBusiness, true);
+      return `Checking now: ${n}${t ? ', ' + t : ''}. Keep this open, or leave it: the checks carry on in the background.`;
+    }
+    const t = waitTime(pending, perBusiness, false);
+    return `${n}. ${where === 'show' ? 'Paused here' : 'Not checking on this screen'}${t ? `; the background checks every 10 minutes finish them in ${t}` : '; the background checks carry on every 10 minutes'}. Tap Keep checking to do it now.`;
+  }
+
+  /**
    * In the installed app on Android a link with target=_blank opens inside the app (Chrome's in-app view). A business's website
    * should open as a new tab in Chrome itself, so the app asks Android for Chrome with an intent link; if Chrome is not there,
    * the fallback address opens the usual way.
@@ -622,6 +649,6 @@
     SECTOR_PRESETS, cleanSector, matchSector, sectorsFrom, searchLinks,
     validUrl, parseShared, validApiUrl, slug,
     CSV_COLUMNS, csvCell, toCsv, mergeBySite, usage, sectorOptions, resolveSector, leadGroups, barLabel,
-    evidenceRows, speedLines, recheckSummary, explainText, scriptOutdated, chromeIntent,
+    evidenceRows, speedLines, recheckSummary, explainText, scriptOutdated, chromeIntent, waitTime, waitingLine,
   };
 });
