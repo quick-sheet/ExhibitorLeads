@@ -203,10 +203,8 @@ header { display: grid; grid-template-columns: 1fr auto; align-items: start; pad
 .btn:disabled { opacity: .5; cursor: default; }
 .btn svg { width: 18px; height: 18px; flex: none; }
 .link-btn { color: var(--ink-2); font-size: 14px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-2); }
-.progress { margin: 14px 0 0; }
 .bar { height: 6px; border-radius: 3px; background: var(--raise-2); overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--sun); border-radius: 3px; transition: width .4s ease; }
-.progress p { margin: 6px 0 0; font-size: 13.5px; color: var(--ink-2); }
 
 /* Forms */
 .field { width: 100%; min-width: 0; height: 44px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg); padding: 0 12px; font-size: 16px; }
@@ -340,6 +338,19 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 .leads .lk.google, .leads .lk.microsoft { width: 16px; height: 16px; margin-top: 4px; border-radius: 0; }
 .leads .lk .logo { display: block; }
 .leads .lk.other { background: var(--prov-o); box-shadow: inset 0 0 0 1px var(--line-2); }
+/* The top line: a tick when all are checked; while leads wait, a spinner (or a still ring when paused), how many, and play or pause */
+.leads li.head { grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; }
+.leads .lk.mark { width: 18px; height: 18px; margin-top: 0; background: none; display: grid; place-items: center; }
+.tick { width: 18px; height: 18px; display: block; }
+.tick circle { fill: var(--raise-2); }
+.tick path { fill: none; stroke: var(--ink); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.lk.mark .spinner { margin: 0; width: 14px; height: 14px; color: var(--ink-2); }
+.lk.mark .ring { width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--ink-3); }
+.leads .head .sub { display: block; font-size: 13.5px; color: var(--ink-2); margin-top: 2px; }
+.run-btn { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--ink); background: var(--raise-2); margin-left: 8px; flex: none; }
+.run-btn.go { background: var(--sun); color: var(--on-sun); }
+.run-btn svg { width: 22px; height: 22px; fill: currentColor; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .leads .lk.corporate { background: var(--st-ok); }
 .leads .lk.check { background: var(--st-check); }
 .leads .lk.consent { background: var(--st-consent); }
@@ -431,7 +442,7 @@ dialog.sheet::backdrop { background: var(--scrim, rgba(0, 0, 0, .55)); }
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"><div class="sheet-in" id="sheetBody"></div></dialog>
 <div class="toast" id="toast" role="status" popover="manual"></div>
 
-<script src="core.js?v=15"></script>
+<script src="core.js?v=16"></script>
 <script>
 (() => {
 'use strict';
@@ -512,6 +523,9 @@ function toast(msg) {
 }
 
 const ICON = {
+  allDone: '<svg class="tick" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9"/><path d="M6 10.4l2.7 2.7L14.2 7.4"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="6" width="3.6" height="12" rx="1.2"/><rect x="13.4" y="6" width="3.6" height="12" rx="1.2"/></svg>',
+  play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 6.2v11.6c0 .8.9 1.3 1.6.8l8.6-5.8c.6-.4.6-1.2 0-1.6l-8.6-5.8c-.7-.5-1.6 0-1.6.8z"/></svg>',
   chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
   more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
@@ -701,11 +715,18 @@ async function runAllChecks() {
     if (moved) ensureChecking();   // went into an exhibition: carry on there
   }
 }
-/** "Checking now: 519 waiting, about 35 minutes", with Pause or Keep checking under it. */
-function waitingHtml(pending, running, where, pct) {
+/**
+ * The first line of the leads: "163 exhibitors" with a tick once all are checked; while leads wait, "111 of 135 checked" with a
+ * spinner (a still ring when paused), "24 waiting · about 2 minutes" under it, and a round pause or play button.
+ */
+function topLine(h, running) {
+  const nums = `<strong class="num">${esc(h.n)}</strong> ${esc(h.text)}`;
+  if (h.done) return `<li class="head done"><i class="lk mark">${ICON.allDone}</i><span>${nums}<span class="vh">, all checked</span></span></li>`;
   const per = S.status && S.status.speed && S.status.speed.seconds;
-  const btn = where === 'show' ? '' : `<div class="actions">${running ? '<button class="btn" type="button" data-act="pause">Pause checking</button>' : '<button class="btn primary" type="button" data-act="resume">Keep checking</button>'}</div>`;
-  return `<div class="progress" role="status" aria-label="Checking exhibitors${pct != null ? ', ' + pct + '% done' : ''}"><p class="num">${running ? '<span class="spinner" aria-hidden="true"></span>' : ''}${esc(C.waitingLine(pending, per, running, where))}</p></div>${btn}`;
+  return `<li class="head progress"><i class="lk mark" aria-hidden="true">${running ? '<span class="spinner"></span>' : '<span class="ring"></span>'}</i>
+    <span>${nums}<span class="sub" role="status">${esc(C.waitingLine(h.pending, per, running))}</span></span>
+    ${running ? `<button class="run-btn" type="button" data-act="pause" aria-label="Pause checking" title="Pause checking">${ICON.pause}</button>`
+    : `<button class="run-btn go" type="button" data-act="resume" aria-label="Keep checking" title="Keep checking">${ICON.play}</button>`}</li>`;
 }
 const pendingAll = () => S.shows.filter((s) => S.route.v !== 'sector' || s.sector === S.route.sector).reduce((a, s) => a + ((s.counts || {}).pending || 0), 0);
 
@@ -816,7 +837,7 @@ function homeHtml() {
   const head = { n: String(S.shows.length), text: `${S.shows.length === 1 ? 'exhibition' : 'exhibitions'} in ${C.plural(sectors.length, 'sector')}` };
   return `<section class="hero" id="homeHero">${t.total ? '' : barsEmpty()}
       <h1 class="empty-title">${has ? 'Your leads' : 'Who are you selling to?'}</h1>
-      ${has ? leadsHtml(head, t, 'No exhibitors loaded yet.') + (t.pending ? waitingHtml(t.pending, E.running && E.showId === '*' && !E.stop, 'home') : '') : `<p class="empty-body">Tap the search icon, or the button below, and choose a sector such as baby, whisky or crafts. You get searches to find the shows, then Exhibitor Leads reads each exhibitor list for you.</p>
+      ${has ? leadsHtml(head, t, 'No exhibitors loaded yet.', E.running && E.showId === '*' && !E.stop) : `<p class="empty-body">Tap the search icon, or the button below, and choose a sector such as baby, whisky or crafts. You get searches to find the shows, then Exhibitor Leads reads each exhibitor list for you.</p>
       <div class="actions"><button class="btn primary" type="button" data-act="open-search">Find shows</button></div>`}
     </section>
     ${sectors.length ? `<h2 class="section-title">Your sectors</h2>${sectors.map(sectorRow).join('')}` : ''}`;
@@ -826,7 +847,7 @@ function homeHtml() {
  * "Your leads": the counts, then two groups, each a bar with its own lines underneath in the same colours and order:
  * "Can you email them?" and "Who runs their email?". Falls back to a sentence while there is nothing to count.
  */
-function leadsHtml(head, c, fallback) {
+function leadsHtml(head, c, fallback, running) {
   const li = (l) => `<li><i class="lk${l.k ? ' ' + l.k : ''}" aria-hidden="true">${logo(l.k)}</i><span>${l.n ? `<strong class="num">${esc(l.n)}</strong>${l.pct ? ` <span class="pct">(${esc(l.pct)})</span>` : ''} ` : ''}${esc(l.text)}</span></li>`;
   const g = C.leadGroups(c);
   if (!g && !head) return `<p class="story">${esc(fallback)}</p>`;
@@ -834,7 +855,7 @@ function leadsHtml(head, c, fallback) {
   const group = (title, kind, grp) => `<div class="lgroup ${kind}"><h3 class="lgroup-h">${title}</h3>
     <div class="lbar ${kind}" role="img" aria-label="${esc(C.barLabel(title.replace(/\?$/, ''), grp.bar))}">${grp.bar.map((x) => `<i class="seg ${x.k}" style="flex-grow:${x.n}">${kind === 'email' && x.n / total >= 0.07 ? logo(x.k) : ''}</i>`).join('')}</div>
     <ul class="leads">${grp.lines.map(li).join('')}</ul></div>`;
-  return `<ul class="leads">${head ? li(head) : ''}${g ? li(g.head) : li({ n: '', text: fallback })}</ul>`
+  return `<ul class="leads">${head ? li(head) : ''}${g ? topLine(g.head, running) : li({ n: '', text: fallback })}</ul>`
     + (g ? group('Can you email them?', 'status', g.status) + (g.email ? group('Who runs their email?', 'email', g.email) : '') : '');
 }
 
@@ -859,7 +880,7 @@ function sectorHtml(sector) {
           ${shows.length ? `<button class="ico-btn" type="button" data-act="rename-sector" aria-label="Rename sector" title="Rename sector">${ICON.pencil}</button>` : ''}
           ${t.total ? `<button class="ico-btn" type="button" data-act="sector-csv" aria-label="Download CSV" title="Download CSV">${ICON.down}</button>` : ''}
         </div></div>
-      ${shows.length ? leadsHtml({ n: String(shows.length), text: shows.length === 1 ? 'exhibition' : 'exhibitions' }, t, 'No exhibitors loaded yet.') + (t.pending ? waitingHtml(t.pending, E.running && E.showId === '*' && !E.stop, 'sector') : '') : '<p class="empty-body">No exhibitions yet. Run one of the searches below, open a show’s exhibitor list, then add it here.</p>'}
+      ${shows.length ? leadsHtml({ n: String(shows.length), text: shows.length === 1 ? 'exhibition' : 'exhibitions' }, t, 'No exhibitors loaded yet.', E.running && E.showId === '*' && !E.stop) : '<p class="empty-body">No exhibitions yet. Run one of the searches below, open a show’s exhibitor list, then add it here.</p>'}
     </section>
     <h2 class="section-title" style="margin-top:8px">Find exhibitions</h2>
     <p class="section-note">These open a Google search in a new tab. Find a show’s exhibitor list, then share it to Exhibitor Leads or copy its address.</p>
@@ -886,15 +907,12 @@ function showShellHtml() {
 }
 
 function showActions(s, c) {
-  const running = E.running && E.showId === s.id;
   if (!c.total) {
     const bad = s.status === 'blocked' || s.status === 'empty' || s.status === 'error';
     if (s.urls.length && !bad) return `<button class="btn primary" type="button" data-act="load">Load exhibitor list</button><button class="btn" type="button" data-act="paste">Paste a list</button>`;
     return `<button class="btn primary" type="button" data-act="paste">Paste the list</button>${!s.urls.length ? '<button class="btn" type="button" data-act="edit-show">Add a link</button>' : s.status === 'blocked' ? '<button class="btn" type="button" data-act="edit-show">Change the link</button>' : '<button class="btn" type="button" data-act="load">Try the link again</button>'}`;
   }
-  let out = '';
-  if (c.pending) out += running ? '<button class="btn" type="button" data-act="pause">Pause checking</button>' : '<button class="btn primary" type="button" data-act="resume">Keep checking</button>';
-  return out;
+  return '';   // checking, pausing and carrying on are the round button on the top line
 }
 
 function updateShow() {
@@ -904,9 +922,7 @@ function updateShow() {
   const rows = S.rows[s.id] || [];
   const c = rows.length ? C.countRows(rows) : (s.counts || C.countRows([]));
   const group = C.GROUPS.find((g) => g.id === C.showGroup(s, today()));
-  const running = E.running && E.showId === s.id;
-  const pct = c.total ? Math.round(100 * c.done / c.total) : 0;
-  const progress = c.pending ? waitingHtml(c.pending, running, 'show', pct) : '';
+  const running = E.running && E.showId === s.id && !E.stop;
   const actions = showActions(s, c);
   const key = [s.id, s.name, s.start, s.end, c.total, c.done, c.corporate, c.check, c.consent, c.google, c.microsoft, running, s.status, s.statusNote, s.urls.length].join('|');
   if (hero.dataset.key !== key) {
@@ -914,7 +930,7 @@ function updateShow() {
     hero.innerHTML = `${c.total ? '' : barsEmpty()}
       <div class="title-row"><div><h1 class="sat-name">${esc(s.name)}</h1><p class="when num">${esc(group.id === 'undated' ? 'Dates not set' : `${C.fmtDates(s.start, s.end)}, ${group.label.toLowerCase()}`)}</p></div>
       <div class="row-icons">${c.total ? `<button class="ico-btn" type="button" data-act="csv" aria-label="Download CSV" title="Download CSV">${ICON.down}</button>` : ''}<button class="ico-btn" type="button" data-act="show-menu" aria-label="Exhibition options" title="Exhibition options">${ICON.more}</button></div></div>
-      ${leadsHtml(null, c, C.summary(c, s))}${progress}
+      ${leadsHtml(null, c, C.summary(c, s), running)}
       ${actions ? `<div class="actions">${actions}</div>` : ''}`;
   }
   const f = $('#showFilters');
@@ -1521,7 +1537,12 @@ async function act(name, t) {
     case 'csv': if (s) downloadShow(s, false); break;
     case 'csv-shown': if (s) { closeSheet(); downloadShow(s, true); } break;
     case 'pause': E.stop = true; E.userPaused = true; updateShow(); if (S.route.v !== 'show') renderMain(); toast('Paused. The background checks carry on.'); break;
-    case 'resume': E.userPaused = false; if (S.route.v === 'show') { if (s) runChecks(s.id); } else runAllChecks(); break;
+    case 'resume':
+      E.userPaused = false;
+      // paused a moment ago and the last step is still finishing: just carry on with it
+      if (E.running) { E.stop = false; if (S.route.v === 'show') updateShow(); else renderMain(); break; }
+      if (S.route.v === 'show') { if (s) runChecks(s.id); } else runAllChecks();
+      break;
     case 'more': S.limit += 200; updateShow(); break;
     case 'open-sheet': if (S.status && S.status.sheetUrl) window.open(S.status.sheetUrl, '_blank', 'noopener'); break;
     case 'delete-show': if (s) openConfirm('Delete this exhibition?', `${s.name} and its exhibitors will be removed from your sheet. This cannot be undone.`, 'delete-show-yes', 'Delete exhibition', s.id); break;

@@ -57,6 +57,17 @@ This is a guide, not legal advice.
 2. Open the **Actions** tab and wait for **Deploy to Pages** to show a green tick (usually under a minute). Opening `sw.js` on the live address should show the new `exhibitorleads-vN` name.
 3. Fully close the app and reopen it. If it still looks the same, close and reopen once more.
 
+**Release 16 (app only; the Apps Script stays at release 14).** A tidier top to the home, sector and exhibition screens: a tick when everything is checked, and checking shown on one line with a round play or pause button.
+
+1. Nothing to do in Apps Script. Settings keeps saying **Apps Script release: 14, up to date**.
+2. Upload `index.html`, `core.js`, `sw.js` and `README.md`, and commit. Wait for the green tick in **Actions**, then fully close and reopen the app.
+
+What release 16 changes:
+
+- **All checked is a tick.** “163 exhibitors, all checked” becomes a small neutral tick beside **163 exhibitors**. Screen readers still hear “all checked”.
+- **Checking sits at the top.** While leads wait, the line reads **111 of 135 checked** with a small spinner beside it and “24 waiting · about 2 minutes” underneath, right where the tick will appear, above the bars. The long paragraph under the bars has gone.
+- **Round play and pause buttons** replace the **Pause checking** and **Keep checking** pills, at the right of that line. Paused, the spinner becomes a still ring, the button turns to play, and the small line says how long the background run would take on its own. Tapping play straight after pause carries on without waiting for the last step to finish.
+
 **Release 15 (app only; the Apps Script stays at release 14).** The home and sector screens check leads themselves, and say how many are waiting and roughly how long they will take.
 
 1. Nothing to do in Apps Script. Settings keeps saying **Apps Script release: 14, up to date**.

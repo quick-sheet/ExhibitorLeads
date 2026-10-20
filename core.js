@@ -425,7 +425,8 @@
     const base = c.done || 0, pending = c.pending || 0;
     const corp = c.corporate || 0, check = c.check || 0, consent = c.consent || 0;
     const [pCorp, pCheck, pConsent] = shares([corp, check, consent], base);
-    const head = pending ? { n: `${commas(c.done)} of ${commas(c.total)}`, text: 'exhibitors checked so far' } : { n: commas(c.total), text: c.total === 1 ? 'exhibitor, checked' : 'exhibitors, all checked' };
+    // the top line: a tick when everything is checked; "111 of 135 checked" while leads wait (the screen adds the spinner and the button)
+    const head = pending ? { n: `${commas(c.done)} of ${commas(c.total)}`, text: 'checked', pending } : { n: commas(c.total), text: c.total === 1 ? 'exhibitor' : 'exhibitors', done: true };
     // `k` ties a line to its colour in the bar; the order matches the bar (can email, check, consent)
     const status = [{ n: commas(corp), text: 'can be emailed without asking first', k: 'corporate', pct: pCorp }];
     if (check) status.push({ n: commas(check), text: check === 1 ? 'needs a quick check' : 'need a quick check', k: 'check', pct: pCheck });
@@ -483,15 +484,12 @@
     return `about ${String(h).replace('.5', '½')} hours`;
   }
 
-  /** The line under the bars while leads are waiting: "Checking now: 519 waiting, about 35 minutes. …" */
-  function waitingLine(pending, perBusiness, running, where) {
+  /** The small line under "111 of 135 checked": "24 waiting · about 2 minutes", or how long the background run would take when paused. */
+  function waitingLine(pending, perBusiness, running) {
     const n = `${commas(pending)} waiting`;
-    if (running) {
-      const t = waitTime(pending, perBusiness, true);
-      return `Checking now: ${n}${t ? ', ' + t : ''}. Keep this open, or leave it: the checks carry on in the background.`;
-    }
+    if (running) { const t = waitTime(pending, perBusiness, true); return n + (t ? ' · ' + t : ''); }
     const t = waitTime(pending, perBusiness, false);
-    return `${n}. ${where === 'show' ? 'Paused here' : 'Not checking on this screen'}${t ? `; the background checks every 10 minutes finish them in ${t}` : '; the background checks carry on every 10 minutes'}. Tap Keep checking to do it now.`;
+    return `${n} · paused here · ${t ? 'the background run takes ' + t : 'the background run carries on every 10 minutes'}`;
   }
 
   /**
